@@ -15,7 +15,7 @@ class EarningsState(TypedDict, total=False):
     previous_summary: str
     portfolio: List[Dict[str, Any]]
 
-
+ main
     translated_text: str
     structured_data: Dict[str, Any]
     signals: Dict[str, Any]
@@ -185,7 +185,6 @@ def build_app(llm: ChatOpenAI):
         return {"final_report": result.content}
 
     graph = StateGraph(EarningsState)
-
     graph.add_node("translate", translate_node)
     graph.add_node("structure", structure_node)
     graph.add_node("signal", signal_node)
@@ -276,7 +275,6 @@ def run_mock_pipeline(transcript: str, previous_summary: str, portfolio: List[Di
     }
 
 
-
 def load_text_file(path: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
@@ -288,13 +286,10 @@ def load_portfolio(path: str) -> List[Dict[str, Any]]:
 
 
 if __name__ == "__main__":
-
-
     transcript = load_text_file("earnings.txt")
     previous_summary = load_text_file("previous.txt")
     portfolio = load_portfolio("portfolio.json")
 
     result = run_pipeline(transcript, previous_summary, portfolio)
-
     print("\n====== 개인화 어닝콜 리포트 ======\n")
     print(result["final_report"])
