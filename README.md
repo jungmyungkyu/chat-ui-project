@@ -63,3 +63,4 @@ uvicorn api_server:app --host 0.0.0.0 --port 8000
 
 - `api_key`: 요청 단위 키(선택). 미입력 시 서버 환경변수의 `OPENAI_API_KEY` 사용
 - `use_mock=true`: OpenAI 키 없이도 UI/API 동작 검증 가능
+
