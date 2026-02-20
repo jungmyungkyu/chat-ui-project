@@ -22,19 +22,6 @@ class EarningsState(TypedDict, total=False):
     final_report: str
 
 
-_llm = None
-
-
-def get_llm() -> ChatOpenAI:
-    global _llm
-    if _llm is None:
-        _llm = ChatOpenAI(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            temperature=0,
-        )
-    return _llm
-
-
 def _extract_json(text: str) -> Dict[str, Any]:
     text = text.strip()
 
@@ -57,18 +44,30 @@ def _extract_json(text: str) -> Dict[str, Any]:
     return {"raw_output": text}
 
 
-def translate_node(state: EarningsState) -> Dict[str, str]:
-    prompt = (
-        "다음 어닝콜 영어 내용을 한국어로 번역해줘. "
-        "숫자(매출/마진/가이던스)는 원문 단위를 유지해줘.\n\n"
-        f"[원문]\n{state['transcript']}"
+def build_llm(api_key: str | None = None) -> ChatOpenAI:
+    key = api_key or os.getenv("OPENAI_API_KEY")
+    if not key:
+        raise ValueError("OPENAI_API_KEY가 필요합니다.")
+
+    return ChatOpenAI(
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        temperature=0,
+        api_key=key,
     )
-    result = get_llm().invoke(prompt)
-    return {"translated_text": result.content}
 
 
-def structure_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
-    prompt = f"""
+def build_app(llm: ChatOpenAI):
+    def translate_node(state: EarningsState) -> Dict[str, str]:
+        prompt = (
+            "다음 어닝콜 영어 내용을 한국어로 번역해줘. "
+            "숫자(매출/마진/가이던스)는 원문 단위를 유지해줘.\n\n"
+            f"[원문]\n{state['transcript']}"
+        )
+        result = llm.invoke(prompt)
+        return {"translated_text": result.content}
+
+    def structure_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
+        prompt = f"""
 다음 어닝콜 내용을 아래 스키마로 JSON만 출력하라.
 
 {{
@@ -82,12 +81,11 @@ def structure_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
 [내용]
 {state['translated_text']}
 """
-    result = get_llm().invoke(prompt)
-    return {"structured_data": _extract_json(result.content)}
+        result = llm.invoke(prompt)
+        return {"structured_data": _extract_json(result.content)}
 
-
-def signal_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
-    prompt = f"""
+    def signal_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
+        prompt = f"""
 다음 데이터를 기반으로 점수를 계산하라.
 - growth_score (-1~1)
 - margin_score (-1~1)
@@ -104,12 +102,11 @@ def signal_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
 [입력]
 {json.dumps(state.get('structured_data', {}), ensure_ascii=False)}
 """
-    result = get_llm().invoke(prompt)
-    return {"signals": _extract_json(result.content)}
+        result = llm.invoke(prompt)
+        return {"signals": _extract_json(result.content)}
 
-
-def delta_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
-    prompt = f"""
+    def delta_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
+        prompt = f"""
 이전 분기 요약과 이번 분기 내용을 비교해 핵심 변화만 정리하라.
 반드시 JSON으로 출력:
 {{
@@ -125,39 +122,37 @@ def delta_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
 [이번 분기]
 {state['translated_text']}
 """
-    result = get_llm().invoke(prompt)
-    return {"delta_analysis": _extract_json(result.content)}
+        result = llm.invoke(prompt)
+        return {"delta_analysis": _extract_json(result.content)}
 
+    def impact_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
+        signals = state.get("signals", {})
 
-def impact_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
-    signals = state.get("signals", {})
+        growth = float(signals.get("growth_score", 0))
+        margin = float(signals.get("margin_score", 0))
+        risk = float(signals.get("risk_score", 0))
 
-    growth = float(signals.get("growth_score", 0))
-    margin = float(signals.get("margin_score", 0))
-    risk = float(signals.get("risk_score", 0))
+        per_asset: List[Dict[str, Any]] = []
+        total_score = 0.0
+        base_score = growth * 0.5 + margin * 0.3 + risk * 0.2
 
-    per_asset: List[Dict[str, Any]] = []
-    total_score = 0.0
-    base_score = growth * 0.5 + margin * 0.3 + risk * 0.2
+        for asset in state["portfolio"]:
+            name = asset.get("name", "unknown")
+            weight = float(asset.get("weight", 0))
+            asset_score = round(weight * base_score, 4)
+            total_score += asset_score
+            per_asset.append({"name": name, "weight": weight, "impact_score": asset_score})
 
-    for asset in state["portfolio"]:
-        name = asset.get("name", "unknown")
-        weight = float(asset.get("weight", 0))
-        asset_score = round(weight * base_score, 4)
-        total_score += asset_score
-        per_asset.append({"name": name, "weight": weight, "impact_score": asset_score})
-
-    return {
-        "portfolio_impact": {
-            "total_score": round(total_score, 4),
-            "risk_level": "높음" if risk < -0.3 else "보통" if risk < 0.2 else "낮음",
-            "per_asset": per_asset,
+        return {
+            "portfolio_impact": {
+                "total_score": round(total_score, 4),
+                "risk_level": "높음" if risk < -0.3 else "보통" if risk < 0.2 else "낮음",
+                "per_asset": per_asset,
+            }
         }
-    }
 
-
-def report_node(state: EarningsState) -> Dict[str, str]:
-    prompt = f"""
+    def report_node(state: EarningsState) -> Dict[str, str]:
+        prompt = f"""
 아래 입력을 바탕으로 개인 투자자용 한국어 리포트를 작성하라.
 조건:
 - 투자 권유/확정적 표현 금지
@@ -179,11 +174,9 @@ def report_node(state: EarningsState) -> Dict[str, str]:
 [포트폴리오 영향]
 {json.dumps(state.get('portfolio_impact', {}), ensure_ascii=False)}
 """
-    result = get_llm().invoke(prompt)
-    return {"final_report": result.content}
+        result = llm.invoke(prompt)
+        return {"final_report": result.content}
 
-
-def build_app():
     graph = StateGraph(EarningsState)
     graph.add_node("translate", translate_node)
     graph.add_node("structure", structure_node)
@@ -201,8 +194,14 @@ def build_app():
     return graph.compile()
 
 
-def run_pipeline(transcript: str, previous_summary: str, portfolio: List[Dict[str, Any]]) -> EarningsState:
-    app = build_app()
+def run_pipeline(
+    transcript: str,
+    previous_summary: str,
+    portfolio: List[Dict[str, Any]],
+    api_key: str | None = None,
+) -> EarningsState:
+    llm = build_llm(api_key=api_key)
+    app = build_app(llm)
     return app.invoke(
         {
             "transcript": transcript,
@@ -228,7 +227,18 @@ def run_mock_pipeline(transcript: str, previous_summary: str, portfolio: List[Di
         "rationale": ["가이던스 유지", "유럽 수요 약세"],
     }
 
-    impact_state = impact_node({"signals": signals, "portfolio": portfolio})
+    growth = float(signals.get("growth_score", 0))
+    margin = float(signals.get("margin_score", 0))
+    risk = float(signals.get("risk_score", 0))
+    base_score = growth * 0.5 + margin * 0.3 + risk * 0.2
+    per_asset: List[Dict[str, Any]] = []
+    total_score = 0.0
+    for asset in portfolio:
+        weight = float(asset.get("weight", 0))
+        score = round(weight * base_score, 4)
+        total_score += score
+        per_asset.append({"name": asset.get("name", "unknown"), "weight": weight, "impact_score": score})
+
     delta = {
         "improved": ["가이던스 범위 소폭 개선"],
         "deteriorated": ["거시 불확실성 언급 증가"],
@@ -249,7 +259,11 @@ def run_mock_pipeline(transcript: str, previous_summary: str, portfolio: List[Di
         "structured_data": structured,
         "signals": signals,
         "delta_analysis": delta,
-        "portfolio_impact": impact_state["portfolio_impact"],
+        "portfolio_impact": {
+            "total_score": round(total_score, 4),
+            "risk_level": "높음" if risk < -0.3 else "보통" if risk < 0.2 else "낮음",
+            "per_asset": per_asset,
+        },
         "final_report": report,
     }
 

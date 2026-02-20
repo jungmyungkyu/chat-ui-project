@@ -11,10 +11,24 @@ LLM 기반 어닝콜 분석 PoC 예제입니다.
 6. 포트폴리오 영향도 계산
 7. 개인화 리포트 생성
 
+## 환경변수 설정
+민감정보 보호를 위해 키는 코드에 넣지 말고 환경변수로 설정하세요.
+
+```bash
+cp .env.example .env
+# .env 파일에 OPENAI_API_KEY 입력
+```
+
+또는 쉘에서 직접:
+
+```bash
+export OPENAI_API_KEY=sk-...
+export OPENAI_MODEL=gpt-4o-mini
+```
+
 ## 1) 스크립트 실행
 ```bash
 pip install langgraph langchain-openai python-dotenv
-export OPENAI_API_KEY=...
 python earnings_langgraph_poc.py
 ```
 
@@ -22,8 +36,6 @@ python earnings_langgraph_poc.py
 - `earnings.txt`
 - `previous.txt`
 - `portfolio.json`
-
-`OPENAI_MODEL` 환경변수로 모델을 바꿀 수 있습니다. (기본: `gpt-4o-mini`)
 
 ## 2) API + UI 실행 (테스트용)
 ```bash
@@ -43,9 +55,10 @@ uvicorn api_server:app --host 0.0.0.0 --port 8000
   "transcript": "Company reported quarterly revenue...",
   "previous_summary": "Previous quarter...",
   "portfolio": [{"name":"AAPL","weight":0.4}],
-  "use_mock": true
+  "use_mock": false,
+  "api_key": "sk-..."
 }
 ```
 
+- `api_key`: 요청 단위 키(선택). 미입력 시 서버 환경변수의 `OPENAI_API_KEY` 사용
 - `use_mock=true`: OpenAI 키 없이도 UI/API 동작 검증 가능
-- `use_mock=false`: `OPENAI_API_KEY` 필요
