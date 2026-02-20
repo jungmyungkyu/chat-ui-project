@@ -29,6 +29,7 @@ export OPENAI_MODEL=gpt-4o-mini
 ## 1) 스크립트 실행
 ```bash
 pip install langgraph langchain-openai python-dotenv
+
 python earnings_langgraph_poc.py
 ```
 
@@ -62,3 +63,4 @@ uvicorn api_server:app --host 0.0.0.0 --port 8000
 
 - `api_key`: 요청 단위 키(선택). 미입력 시 서버 환경변수의 `OPENAI_API_KEY` 사용
 - `use_mock=true`: OpenAI 키 없이도 UI/API 동작 검증 가능
+
