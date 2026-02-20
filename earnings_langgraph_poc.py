@@ -10,10 +10,12 @@ load_dotenv()
 
 
 class EarningsState(TypedDict, total=False):
+
     transcript: str
     previous_summary: str
     portfolio: List[Dict[str, Any]]
 
+ main
     translated_text: str
     structured_data: Dict[str, Any]
     signals: Dict[str, Any]
@@ -29,6 +31,7 @@ def _extract_json(text: str) -> Dict[str, Any]:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
+
 
     if "```" in text:
         chunks = text.split("```")
@@ -68,6 +71,7 @@ def build_app(llm: ChatOpenAI):
 
     def structure_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
         prompt = f"""
+
 다음 어닝콜 내용을 아래 스키마로 JSON만 출력하라.
 
 {{
@@ -86,6 +90,7 @@ def build_app(llm: ChatOpenAI):
 
     def signal_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
         prompt = f"""
+
 다음 데이터를 기반으로 점수를 계산하라.
 - growth_score (-1~1)
 - margin_score (-1~1)
@@ -107,6 +112,7 @@ def build_app(llm: ChatOpenAI):
 
     def delta_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
         prompt = f"""
+
 이전 분기 요약과 이번 분기 내용을 비교해 핵심 변화만 정리하라.
 반드시 JSON으로 출력:
 {{
@@ -153,6 +159,7 @@ def build_app(llm: ChatOpenAI):
 
     def report_node(state: EarningsState) -> Dict[str, str]:
         prompt = f"""
+
 아래 입력을 바탕으로 개인 투자자용 한국어 리포트를 작성하라.
 조건:
 - 투자 권유/확정적 표현 금지
