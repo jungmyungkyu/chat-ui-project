@@ -53,11 +53,12 @@ uvicorn api_server:app --host 0.0.0.0 --port 8000
 ```json
 {
   "transcript": "Company reported quarterly revenue...",
+  "previous_summary": "Previous quarter...",
   "portfolio": [{"name":"AAPL","weight":0.4}],
-  "use_mock": false
+  "use_mock": false,
+  "api_key": "sk-..."
 }
 ```
 
-- `previous_summary`는 UI 입력이 아닌 서버의 에이전트 결과(`previous.txt`)를 사용
+- `api_key`: 요청 단위 키(선택). 미입력 시 서버 환경변수의 `OPENAI_API_KEY` 사용
 - `use_mock=true`: OpenAI 키 없이도 UI/API 동작 검증 가능
-- 실모드(`use_mock=false`)는 서버 환경변수 `OPENAI_API_KEY` 필요
