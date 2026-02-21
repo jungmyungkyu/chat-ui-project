@@ -59,7 +59,7 @@ def build_llm(api_key: str | None = None) -> ChatOpenAI:
 def build_app(llm: ChatOpenAI):
     def translate_node(state: EarningsState) -> Dict[str, str]:
         prompt = (
-            "다음 어닝콜 영어 내용을 한국어로 번역해줘. "
+            "다음 어닝콜 영어 내용을 자연스러운 한국어로 번역해줘. "
             "숫자(매출/마진/가이던스)는 원문 단위를 유지해줘.\n\n"
             f"[원문]\n{state['transcript']}"
         )
@@ -154,22 +154,49 @@ def build_app(llm: ChatOpenAI):
     def report_node(state: EarningsState) -> Dict[str, str]:
         prompt = f"""
 아래 입력을 바탕으로 개인 투자자용 한국어 마크다운 리포트를 작성하라.
-조건:
-- 투자 권유/확정적 표현 금지
-- '가능 시나리오' 중심
-- 출력은 반드시 Markdown 형식
-- 아래 섹션 순서 준수:
-  1) 핵심 요약
-  2) 긍정/부정/리스크 신호
-  3) 전분기 대비 변화
-  4) 포트폴리오 영향
-  5) 반복 키워드(Top 5)
-  6) 근거 출처(원문 인용)
 
-근거 출처 작성 규칙:
-- 최소 3개 이상 bullet
-- 각 bullet은 [원문 근거] 접두어를 사용
-- transcript에서 실제 문구를 짧게 인용하고, 왜 해당 분석 근거인지 한 줄 설명
+핵심 요구사항:
+- 투자 권유/확정적 표현 금지, 확률 기반 시나리오 중심
+- 리포트는 충분히 자세하고 실무적으로 작성
+- 분석 근거는 반드시 원문 인용으로 연결
+- 숫자 및 가이던스 출처를 명시
+
+반드시 아래 섹션 순서로 작성:
+## 1. 개인화 가치 (Personalization)
+- 보유 종목 및 비중 반영
+- 사용자별 영향도 점수 산출
+
+## 2. 변화 감지 가치 (Delta Insight)
+- 전분기 대비 가이던스 변화
+- 리스크 키워드 증감
+- 경영진 톤 변화
+
+## 3. 신뢰 가치 (Transparency)
+- 모든 분석에 원문 근거 연결
+- 숫자 및 가이던스 출처 명시
+
+## 4. 핵심 기능 결과
+### 4-1. 포트폴리오 영향도 분석
+### 4-2. 전분기 대비 변화 감지
+### 4-3. 행동 보조 인사이트
+- 상승/하락 시나리오
+- 리스크 요인 요약
+- 경쟁사 대비 위치(가능하면)
+
+## 5. 반복 키워드 (Top 5)
+
+## 6. 근거 출처(원문 인용)
+- 최소 4개 bullet
+- 형식: [원문 근거] "인용 문구" → 해석
+
+## 7. 직관적 신호 요약표
+- 아래 형식으로 표를 작성
+| 항목 | 상태 |
+| --- | --- |
+| 매출 성장 | 🟢/🟡/🔴 |
+| 마진 | 🟢/🟡/🔴 |
+| 리스크 | 🟢/🟡/🔴 |
+| 가이던스 | 🟢/🟡/🔴 |
 
 [원문 transcript]
 {state['transcript']}
@@ -227,7 +254,11 @@ def run_pipeline(
 
 
 def run_mock_pipeline(transcript: str, previous_summary: str, portfolio: List[Dict[str, Any]]) -> EarningsState:
-    translated = f"[MOCK 번역]\n{transcript[:400]}"
+    translated = (
+        "[MOCK 번역]\n"
+        "회사는 분기 매출이 전년 대비 증가했고, 마진이 개선되었다고 설명했습니다. "
+        "다만 유럽 수요와 환율 변동성은 리스크 요인으로 언급되었습니다."
+    )
     structured = {
         "revenue": {"value": "N/A", "comment": "샘플 파서 결과"},
         "margin": {"value": "N/A", "comment": "샘플 파서 결과"},
@@ -261,17 +292,34 @@ def run_mock_pipeline(transcript: str, previous_summary: str, portfolio: List[Di
         "one_line_takeaway": "성장은 유지되나 리스크 코멘트가 늘어남",
     }
     report = (
-        "## 핵심 요약\n"
-        "성장 기대는 유효하나 단기 변동성 리스크가 존재합니다.\n\n"
-        "## 긍정/부정/리스크 신호\n"
-        "- 긍정: 매출 성장 가정 유지\n"
-        "- 리스크: 수요 둔화 가능성 반영\n\n"
-        "## 반복 키워드 (Top 5)\n"
+        "## 1. 개인화 가치 (Personalization)\n"
+        "보유 종목 비중을 반영한 결과, 포트폴리오 종합 영향도는 +0.09 수준의 완만한 긍정 신호입니다.\n\n"
+        "## 2. 변화 감지 가치 (Delta Insight)\n"
+        "전분기 대비 가이던스는 소폭 개선된 반면, 리스크 언급은 증가했습니다.\n\n"
+        "## 3. 신뢰 가치 (Transparency)\n"
+        "아래 근거 출처 섹션에 원문 인용을 통해 근거를 연결합니다.\n\n"
+        "## 4. 핵심 기능 결과\n"
+        "### 4-1. 포트폴리오 영향도 분석\n"
+        "이번 어닝콜은 귀하의 포트폴리오에 +0.09 수준의 긍정 신호를 제공합니다.\n\n"
+        "### 4-2. 전분기 대비 변화 감지\n"
+        "리스크 키워드(수요 둔화, 변동성) 언급이 증가했습니다.\n\n"
+        "### 4-3. 행동 보조 인사이트\n"
+        "상승 시나리오: AI 수요 유지 시 가이던스 개선 여지\n"
+        "하락 시나리오: 유럽 수요 둔화가 실적 압박\n\n"
+        "## 5. 반복 키워드 (Top 5)\n"
         "- AI\n- Guidance\n- Margin\n- Demand\n- Volatility\n\n"
-        "## 근거 출처(원문 인용)\n"
-        "- [원문 근거] \"revenue growth\" → 성장 점수 산정 근거\n"
-        "- [원문 근거] \"risks in Europe\" → 리스크 점수 산정 근거\n"
-        "- [원문 근거] \"guidance\" → 전망 안정성 판단 근거\n"
+        "## 6. 근거 출처(원문 인용)\n"
+        "- [원문 근거] \"AI demand increased\" → 성장 모멘텀 근거\n"
+        "- [원문 근거] \"Margin improved\" → 수익성 개선 근거\n"
+        "- [원문 근거] \"risks in Europe\" → 지역 수요 리스크 근거\n"
+        "- [원문 근거] \"FX volatility\" → 환율 불확실성 근거\n\n"
+        "## 7. 직관적 신호 요약표\n"
+        "| 항목 | 상태 |\n"
+        "| --- | --- |\n"
+        "| 매출 성장 | 🟢 |\n"
+        "| 마진 | 🟡 |\n"
+        "| 리스크 | 🔴 |\n"
+        "| 가이던스 | 🟢 |\n"
     )
 
     return {

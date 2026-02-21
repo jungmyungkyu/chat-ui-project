@@ -30,9 +30,11 @@
       .result-grid { display:grid; gap:12px; }
       .panel-title { font-size:13px; font-weight:700; margin-bottom:8px; }
       .output-box { margin:0; min-height:180px; max-height:360px; overflow:auto; border-radius:10px; padding:14px; background:#0e1629; color:#d9e4ff; font-size:12px; line-height:1.45; white-space:pre-wrap; }
-      .markdown-box { min-height:280px; max-height:540px; overflow:auto; border:1px solid var(--line); border-radius:10px; padding:14px; background:#fff; }
+      .markdown-box { min-height:340px; max-height:620px; overflow:auto; border:1px solid var(--line); border-radius:10px; padding:14px; background:#fff; }
       .markdown-box h1,.markdown-box h2,.markdown-box h3 { margin:10px 0 6px; }
       .markdown-box ul { padding-left:20px; }
+      .markdown-box table { width:100%; border-collapse:collapse; margin-top:8px; }
+      .markdown-box th,.markdown-box td { border:1px solid var(--line); padding:6px 8px; text-align:left; }
       @media (max-width:980px) { .layout{grid-template-columns:1fr;} }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -60,12 +62,7 @@
             </div>
 
             <div class="field">
-              <label for="previous">Previous Summary (전분기 요약)</label>
-              <textarea id="previous">Previous quarter revenue was $5.1B with 39.8% gross margin. Guidance was 4-6% YoY growth.</textarea>
-            </div>
-
-            <div class="field">
-              <label for="portfolio">Portfolio JSON</label>
+              <label for="portfolio">내 주식 포트폴리오 (JSON)</label>
               <textarea id="portfolio">[{"name":"AAPL","weight":0.4},{"name":"MSFT","weight":0.35},{"name":"NVDA","weight":0.25}]</textarea>
             </div>
 
@@ -73,7 +70,7 @@
               <label class="check"><input type="checkbox" id="use_mock" /> Mock 모드(use_mock)</label>
               <button class="btn" onclick="runAnalyze()">분석 실행</button>
             </div>
-            <div class="hint">Mock ON: 키 없이 테스트 / OFF: 서버 OPENAI_API_KEY 사용</div>
+            <div class="hint">Previous Summary는 사용자 입력 대신 서버 내부 요약 에이전트 결과값을 사용합니다.</div>
           </div>
         </section>
 
@@ -81,7 +78,7 @@
           <div class="card-header row"><span>출력</span><span class="status" id="status">대기 중</span></div>
           <div class="card-body result-grid">
             <div>
-              <div class="panel-title">어닝콜 번역 결과</div>
+              <div class="panel-title">어닝콜 번역 결과 (한국어)</div>
               <pre id="translated" class="output-box">아직 실행 전</pre>
             </div>
             <div>
@@ -104,7 +101,6 @@
       async function runAnalyze() {
         const status = document.getElementById('status');
         const transcript = document.getElementById('transcript').value;
-        const previous_summary = document.getElementById('previous').value;
         const use_mock = document.getElementById('use_mock').checked;
         const translatedEl = document.getElementById('translated');
         const reportEl = document.getElementById('report');
@@ -113,7 +109,7 @@
         try {
           portfolio = JSON.parse(document.getElementById('portfolio').value);
         } catch (e) {
-          alert('Portfolio JSON 형식이 잘못되었습니다.');
+          alert('내 주식 포트폴리오 JSON 형식이 잘못되었습니다.');
           return;
         }
 
@@ -130,13 +126,13 @@
           const res = await fetch('/analyze', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ transcript, previous_summary, portfolio, use_mock })
+            body: JSON.stringify({ transcript, portfolio, use_mock })
           });
 
           const data = await res.json();
-          translatedEl.textContent = data.translated_text || '-';
+          translatedEl.textContent = data.translated_text || '번역 결과가 없습니다.';
 
-          const markdown = data.final_report || '-';
+          const markdown = data.final_report || '리포트 결과가 없습니다.';
           if (window.marked) {
             reportEl.innerHTML = marked.parse(markdown);
           } else {
