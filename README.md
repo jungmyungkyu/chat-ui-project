@@ -29,7 +29,6 @@ export OPENAI_MODEL=gpt-4o-mini
 ## 1) 스크립트 실행
 ```bash
 pip install langgraph langchain-openai python-dotenv
-
 python earnings_langgraph_poc.py
 ```
 

@@ -10,12 +10,10 @@ load_dotenv()
 
 
 class EarningsState(TypedDict, total=False):
-
     transcript: str
     previous_summary: str
     portfolio: List[Dict[str, Any]]
 
- main
     translated_text: str
     structured_data: Dict[str, Any]
     signals: Dict[str, Any]
@@ -31,7 +29,6 @@ def _extract_json(text: str) -> Dict[str, Any]:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-
 
     if "```" in text:
         chunks = text.split("```")
@@ -71,7 +68,6 @@ def build_app(llm: ChatOpenAI):
 
     def structure_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
         prompt = f"""
-
 다음 어닝콜 내용을 아래 스키마로 JSON만 출력하라.
 
 {{
@@ -90,7 +86,6 @@ def build_app(llm: ChatOpenAI):
 
     def signal_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
         prompt = f"""
-
 다음 데이터를 기반으로 점수를 계산하라.
 - growth_score (-1~1)
 - margin_score (-1~1)
@@ -112,7 +107,6 @@ def build_app(llm: ChatOpenAI):
 
     def delta_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
         prompt = f"""
-
 이전 분기 요약과 이번 분기 내용을 비교해 핵심 변화만 정리하라.
 반드시 JSON으로 출력:
 {{
@@ -159,12 +153,26 @@ def build_app(llm: ChatOpenAI):
 
     def report_node(state: EarningsState) -> Dict[str, str]:
         prompt = f"""
-
-아래 입력을 바탕으로 개인 투자자용 한국어 리포트를 작성하라.
+아래 입력을 바탕으로 개인 투자자용 한국어 마크다운 리포트를 작성하라.
 조건:
 - 투자 권유/확정적 표현 금지
 - '가능 시나리오' 중심
-- 1) 핵심 요약 2) 긍/부정/리스크 3) 전분기 변화 4) 포트폴리오 영향 5) 체크포인트
+- 출력은 반드시 Markdown 형식
+- 아래 섹션 순서 준수:
+  1) 핵심 요약
+  2) 긍정/부정/리스크 신호
+  3) 전분기 대비 변화
+  4) 포트폴리오 영향
+  5) 반복 키워드(Top 5)
+  6) 근거 출처(원문 인용)
+
+근거 출처 작성 규칙:
+- 최소 3개 이상 bullet
+- 각 bullet은 [원문 근거] 접두어를 사용
+- transcript에서 실제 문구를 짧게 인용하고, 왜 해당 분석 근거인지 한 줄 설명
+
+[원문 transcript]
+{state['transcript']}
 
 [포트폴리오]
 {json.dumps(state['portfolio'], ensure_ascii=False)}
@@ -253,9 +261,17 @@ def run_mock_pipeline(transcript: str, previous_summary: str, portfolio: List[Di
         "one_line_takeaway": "성장은 유지되나 리스크 코멘트가 늘어남",
     }
     report = (
-        "[MOCK 리포트]\n"
-        "- 핵심 요약: 성장 기대는 유효하나 단기 변동성 리스크가 존재합니다.\n"
-        "- 체크포인트: 다음 분기 가이던스, 수요 회복 신호, 비용 통제 수준을 확인하세요."
+        "## 핵심 요약\n"
+        "성장 기대는 유효하나 단기 변동성 리스크가 존재합니다.\n\n"
+        "## 긍정/부정/리스크 신호\n"
+        "- 긍정: 매출 성장 가정 유지\n"
+        "- 리스크: 수요 둔화 가능성 반영\n\n"
+        "## 반복 키워드 (Top 5)\n"
+        "- AI\n- Guidance\n- Margin\n- Demand\n- Volatility\n\n"
+        "## 근거 출처(원문 인용)\n"
+        "- [원문 근거] \"revenue growth\" → 성장 점수 산정 근거\n"
+        "- [원문 근거] \"risks in Europe\" → 리스크 점수 산정 근거\n"
+        "- [원문 근거] \"guidance\" → 전망 안정성 판단 근거\n"
     )
 
     return {

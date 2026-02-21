@@ -5,210 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Earnings Call PoC UI</title>
     <style>
-      :root {
-        --bg: #f6f8fc;
-        --card: #ffffff;
-        --text: #172033;
-        --muted: #5c667f;
-        --line: #e4e9f3;
-        --primary: #315efb;
-        --primary-dark: #2649c7;
-        --ok: #14ae5c;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-        background: var(--bg);
-        color: var(--text);
-      }
-
-      .container {
-        max-width: 1100px;
-        margin: 0 auto;
-        padding: 28px 20px 48px;
-      }
-
-      .header {
-        margin-bottom: 16px;
-      }
-
-      .title {
-        margin: 0;
-        font-size: 28px;
-        font-weight: 700;
-      }
-
-      .subtitle {
-        margin: 8px 0 0;
-        color: var(--muted);
-      }
-
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        margin-top: 12px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        background: #e9f8ef;
-        color: #0a7a3d;
-        font-size: 12px;
-        font-weight: 600;
-      }
-
-      .layout {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-      }
-
-      .card {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        box-shadow: 0 2px 12px rgba(17, 35, 70, 0.06);
-      }
-
-      .card-header {
-        padding: 14px 16px;
-        border-bottom: 1px solid var(--line);
-        font-weight: 700;
-      }
-
-      .card-body {
-        padding: 14px 16px 16px;
-      }
-
-      .field {
-        margin-bottom: 12px;
-      }
-
-      .field label {
-        display: block;
-        font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 6px;
-      }
-
-      input[type="password"],
-      textarea {
-        width: 100%;
-        border: 1px solid #d3dcef;
-        border-radius: 10px;
-        background: #fff;
-        color: var(--text);
-        padding: 10px 12px;
-        outline: none;
-      }
-
-      input[type="password"]:focus,
-      textarea:focus {
-        border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(49, 94, 251, 0.14);
-      }
-
-      textarea {
-        min-height: 110px;
-        resize: vertical;
-        line-height: 1.4;
-      }
-
-      .hint {
-        margin-top: 6px;
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-      }
-
-      .check {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 14px;
-      }
-
-      .btn {
-        appearance: none;
-        border: 0;
-        border-radius: 10px;
-        padding: 10px 16px;
-        background: var(--primary);
-        color: #fff;
-        font-weight: 700;
-        cursor: pointer;
-      }
-
-      .btn:hover {
-        background: var(--primary-dark);
-      }
-
-      pre {
-        margin: 0;
-        min-height: 420px;
-        max-height: 700px;
-        overflow: auto;
-        border-radius: 10px;
-        padding: 14px;
-        background: #0e1629;
-        color: #d9e4ff;
-        font-size: 12px;
-        line-height: 1.45;
-      }
-
-      .result-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      .status {
-        font-size: 12px;
-        color: var(--muted);
-      }
-
-      @media (max-width: 980px) {
-        .layout {
-          grid-template-columns: 1fr;
-        }
-
-        pre {
-          min-height: 300px;
-        }
-      }
+      :root { --bg:#f6f8fc; --card:#fff; --text:#172033; --muted:#5c667f; --line:#e4e9f3; --primary:#315efb; --primary-dark:#2649c7; }
+      * { box-sizing:border-box; }
+      body { margin:0; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
+      .container { max-width:1200px; margin:0 auto; padding:28px 20px 48px; }
+      .header { margin-bottom:16px; }
+      .title { margin:0; font-size:28px; font-weight:700; }
+      .subtitle { margin:8px 0 0; color:var(--muted); }
+      .layout { display:grid; grid-template-columns:1fr 1.2fr; gap:16px; }
+      .card { background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:0 2px 12px rgba(17,35,70,.06); }
+      .card-header { padding:14px 16px; border-bottom:1px solid var(--line); font-weight:700; }
+      .card-body { padding:14px 16px 16px; }
+      .field { margin-bottom:12px; }
+      .field label { display:block; font-size:13px; font-weight:600; margin-bottom:6px; }
+      textarea, input[type="file"] { width:100%; border:1px solid #d3dcef; border-radius:10px; background:#fff; color:var(--text); padding:10px 12px; outline:none; }
+      textarea:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(49,94,251,.14); }
+      textarea { min-height:120px; resize:vertical; line-height:1.4; }
+      .hint { margin-top:6px; color:var(--muted); font-size:12px; }
+      .row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+      .check { display:inline-flex; align-items:center; gap:8px; font-size:14px; }
+      .btn { border:0; border-radius:10px; padding:10px 16px; background:var(--primary); color:#fff; font-weight:700; cursor:pointer; }
+      .btn:hover { background:var(--primary-dark); }
+      .status { font-size:12px; color:var(--muted); }
+      .result-grid { display:grid; gap:12px; }
+      .panel-title { font-size:13px; font-weight:700; margin-bottom:8px; }
+      .output-box { margin:0; min-height:180px; max-height:360px; overflow:auto; border-radius:10px; padding:14px; background:#0e1629; color:#d9e4ff; font-size:12px; line-height:1.45; white-space:pre-wrap; }
+      .markdown-box { min-height:280px; max-height:540px; overflow:auto; border:1px solid var(--line); border-radius:10px; padding:14px; background:#fff; }
+      .markdown-box h1,.markdown-box h2,.markdown-box h3 { margin:10px 0 6px; }
+      .markdown-box ul { padding-left:20px; }
+      @media (max-width:980px) { .layout{grid-template-columns:1fr;} }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   </head>
   <body>
     <div class="container">
       <header class="header">
         <h1 class="title">Earnings Call Analyzer</h1>
-        <p class="subtitle">LangGraph 기반 어닝콜 번역·요약·신호·포트폴리오 영향 분석을 UI에서 바로 테스트하세요.</p>
-        <div class="badge">● API + UI 연결 상태에서 실시간 테스트 가능</div>
+        <p class="subtitle">입력 텍스트/파일 기반 어닝콜 분석 PoC</p>
       </header>
 
       <div class="layout">
         <section class="card">
-          <div class="card-header">입력 설정</div>
+          <div class="card-header">입력</div>
           <div class="card-body">
             <div class="field">
-              <label for="api_key">OpenAI API Key (선택)</label>
-              <input type="password" id="api_key" placeholder="sk-..." />
-              <div class="hint">비워두면 서버 환경변수 OPENAI_API_KEY를 사용합니다.</div>
+              <label for="transcript">Transcript (직접 입력)</label>
+              <textarea id="transcript" placeholder="어닝콜 원문을 붙여넣으세요"></textarea>
             </div>
 
             <div class="field">
-              <label for="transcript">Transcript (영문 어닝콜 원문)</label>
-              <textarea id="transcript">Company reported quarterly revenue of $5.4B, up 8% YoY. Gross margin expanded to 42.1%. Management guided next quarter revenue growth of 6-9% YoY. Risks include weaker demand in Europe and FX volatility.</textarea>
+              <label for="transcript_file">Transcript 파일 업로드 (.txt)</label>
+              <input type="file" id="transcript_file" accept=".txt,text/plain" />
+              <div class="hint">파일을 올리면 텍스트 입력란을 덮어씁니다.</div>
             </div>
 
             <div class="field">
@@ -225,30 +73,41 @@
               <label class="check"><input type="checkbox" id="use_mock" /> Mock 모드(use_mock)</label>
               <button class="btn" onclick="runAnalyze()">분석 실행</button>
             </div>
-            <div class="hint">Mock 모드 ON: 키 없이도 흐름 테스트 가능 / OFF: 실제 LLM 호출</div>
+            <div class="hint">Mock ON: 키 없이 테스트 / OFF: 서버 OPENAI_API_KEY 사용</div>
           </div>
         </section>
 
         <section class="card">
-          <div class="card-header result-header">
-            <span>분석 결과</span>
-            <span class="status" id="status">대기 중</span>
-          </div>
-          <div class="card-body">
-            <pre id="result">아직 실행 전</pre>
+          <div class="card-header row"><span>출력</span><span class="status" id="status">대기 중</span></div>
+          <div class="card-body result-grid">
+            <div>
+              <div class="panel-title">어닝콜 번역 결과</div>
+              <pre id="translated" class="output-box">아직 실행 전</pre>
+            </div>
+            <div>
+              <div class="panel-title">분석 결과 리포트 (Markdown)</div>
+              <div id="report" class="markdown-box">아직 실행 전</div>
+            </div>
           </div>
         </section>
       </div>
     </div>
 
     <script>
+      document.getElementById('transcript_file').addEventListener('change', async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        document.getElementById('transcript').value = text;
+      });
+
       async function runAnalyze() {
         const status = document.getElementById('status');
-        const resultEl = document.getElementById('result');
         const transcript = document.getElementById('transcript').value;
         const previous_summary = document.getElementById('previous').value;
         const use_mock = document.getElementById('use_mock').checked;
-        const api_key = document.getElementById('api_key').value || null;
+        const translatedEl = document.getElementById('translated');
+        const reportEl = document.getElementById('report');
 
         let portfolio;
         try {
@@ -258,22 +117,37 @@
           return;
         }
 
+        if (!transcript.trim()) {
+          alert('Transcript를 입력하거나 .txt 파일을 업로드하세요.');
+          return;
+        }
+
         status.textContent = '요청 중...';
-        resultEl.textContent = '분석 실행 중입니다...';
+        translatedEl.textContent = '분석 실행 중입니다...';
+        reportEl.textContent = '분석 실행 중입니다...';
 
         try {
           const res = await fetch('/analyze', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ transcript, previous_summary, portfolio, use_mock, api_key })
+            body: JSON.stringify({ transcript, previous_summary, portfolio, use_mock })
           });
 
           const data = await res.json();
-          resultEl.textContent = JSON.stringify(data, null, 2);
+          translatedEl.textContent = data.translated_text || '-';
+
+          const markdown = data.final_report || '-';
+          if (window.marked) {
+            reportEl.innerHTML = marked.parse(markdown);
+          } else {
+            reportEl.textContent = markdown;
+          }
+
           status.textContent = res.ok ? '완료' : `오류 (${res.status})`;
         } catch (err) {
           status.textContent = '네트워크 오류';
-          resultEl.textContent = `요청 실패: ${err}`;
+          translatedEl.textContent = `요청 실패: ${err}`;
+          reportEl.textContent = `요청 실패: ${err}`;
         }
       }
     </script>
