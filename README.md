@@ -26,21 +26,6 @@ export OPENAI_API_KEY=sk-...
 export OPENAI_MODEL=gpt-4o-mini
 ```
 
-
-## 최신 버전 동기화(로컬이 구버전일 때)
-```bash
-git fetch origin
-git checkout main
-git pull origin main
-git reset --hard origin/main  # 로컬 변경사항을 버리고 최신으로 맞출 때만
-```
-
-로컬 커밋 확인:
-```bash
-git rev-parse HEAD
-git log --oneline -n 5
-```
-
 ## 1) 스크립트 실행
 ```bash
 pip install langgraph langchain-openai python-dotenv
@@ -68,11 +53,12 @@ uvicorn api_server:app --host 0.0.0.0 --port 8000
 ```json
 {
   "transcript": "Company reported quarterly revenue...",
+  "previous_summary": "Previous quarter...",
   "portfolio": [{"name":"AAPL","weight":0.4}],
-  "use_mock": false
+  "use_mock": false,
+  "api_key": "sk-..."
 }
 ```
 
-- `previous_summary`는 UI 입력이 아닌 서버의 에이전트 결과(`previous.txt`)를 사용
+- `api_key`: 요청 단위 키(선택). 미입력 시 서버 환경변수의 `OPENAI_API_KEY` 사용
 - `use_mock=true`: OpenAI 키 없이도 UI/API 동작 검증 가능
-- 실모드(`use_mock=false`)는 서버 환경변수 `OPENAI_API_KEY` 필요
