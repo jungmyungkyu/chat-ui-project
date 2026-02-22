@@ -33,6 +33,8 @@
       .check { display:inline-flex; align-items:center; gap:8px; font-size:14px; }
       .btn { border:0; border-radius:10px; padding:10px 16px; background:var(--primary); color:#fff; font-weight:700; cursor:pointer; }
       .btn:hover { background:var(--primary-dark); }
+      .btn:disabled { background:#b8c3df; color:#eef2ff; cursor:not-allowed; opacity:1; }
+      .btn:disabled:hover { background:#b8c3df; }
       .status { font-size:12px; color:var(--muted); }
       .result-grid { display:grid; gap:12px; }
       .panel-title { font-size:13px; font-weight:700; margin-bottom:8px; }
@@ -352,6 +354,9 @@
       }
 
       async function runAnalyze() {
+        if (analyzeBtn.disabled) {
+          return;
+        }
         const status = document.getElementById('status');
         const transcript = document.getElementById('transcript').value;
         const use_mock = document.getElementById('use_mock').checked;
