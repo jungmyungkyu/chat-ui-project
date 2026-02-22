@@ -185,6 +185,12 @@
         const footnotes = {};
         const lineEvidence = {};
         const transcript = transcriptText || '';
+        const commentBodies = Array.from(markdownText.matchAll(/<!--[\s\S]*?-->/g)).map((m) => m[0]);
+        const commentLines = commentBodies
+          .flatMap((c) => c.replace(/^<!--|-->$/g, '').split('\n'))
+          .map((l) => l.trim())
+          .filter(Boolean);
+
         const lines = markdownText.split('\n');
         const kept = [];
 
@@ -197,6 +203,14 @@
             continue;
           }
           kept.push(line);
+        }
+
+        for (const line of commentLines) {
+          const m = line.match(/^\[\^(\d+)\^\]:\s*(.+)$/);
+          if (!m) continue;
+          const defText = m[2].trim();
+          const quoted = defText.match(/["“”']([^"“”']+)["“”']/);
+          footnotes[m[1]] = (quoted?.[1] || defText).trim();
         }
 
         const cleanedMarkdown = kept.join('\n');
