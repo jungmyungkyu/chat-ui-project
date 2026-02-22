@@ -1,0 +1,5 @@
+[
+  {"name": "AAPL", "weight": 0.4},
+  {"name": "MSFT", "weight": 0.35},
+  {"name": "NVDA", "weight": 0.25}
+]
