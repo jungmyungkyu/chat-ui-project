@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from typing import Any, Dict, List, TypedDict
 
 from dotenv import load_dotenv
@@ -45,7 +46,11 @@ def _extract_json(text: str) -> Dict[str, Any]:
 
 
 def _ensure_inline_footnotes(report_text: str) -> str:
-    if "[^" in report_text:
+    # Normalize common malformed variants like [^1^} -> [^1^]
+    report_text = re.sub(r"\[\^(\d+)\^\}", r"[^\1^]", report_text)
+    report_text = re.sub(r"\[\^(\d+)\}", r"[^\1^]", report_text)
+
+    if re.search(r"\[\^\d+\^\]", report_text):
         return report_text
 
     lines = report_text.splitlines()
