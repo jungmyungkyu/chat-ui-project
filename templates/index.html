@@ -154,6 +154,7 @@
 
       function parseFootnotes(markdownText, transcriptText) {
         const footnotes = {};
+        const lineEvidence = {};
         const transcript = transcriptText || '';
         const lines = markdownText.split('\n');
         const kept = [];
@@ -177,14 +178,29 @@
           if (quote && id && !footnotes[id]) footnotes[id] = quote;
         }
 
+        for (const line of kept) {
+          const ids = Array.from(line.matchAll(/\[\^(\d+)\^\]/g)).map((m) => m[1]);
+          if (!ids.length) continue;
+          const quotedInLine = Array.from(line.matchAll(/["“”']([^"“”']+)["“”']/g)).map((m) => m[1].trim());
+          ids.forEach((id, idx) => {
+            if (footnotes[id]) return;
+            if (quotedInLine[idx]) {
+              lineEvidence[id] = quotedInLine[idx];
+              return;
+            }
+            const cleanedLine = line.replace(/\[\^\d+\^\]/g, ' ').replace(/[\-*#>|`]/g, ' ').trim();
+            if (cleanedLine) lineEvidence[id] = cleanedLine;
+          });
+        }
+
         const markerRegex = /\[\^(\d+)\^\]/g;
         for (const marker of cleanedMarkdown.matchAll(markerRegex)) {
           const id = marker[1];
-          if (footnotes[id]) continue;
+          if (footnotes[id] || lineEvidence[id]) continue;
           const idx = marker.index || 0;
           const before = cleanedMarkdown.slice(Math.max(0, idx - 180), idx);
           const sentence = before.split(/[\n.!?]/).pop()?.trim();
-          if (sentence) footnotes[id] = sentence;
+          if (sentence) lineEvidence[id] = sentence;
         }
 
         const transcriptSentences = transcript
@@ -192,7 +208,8 @@
           .map((s) => s.trim())
           .filter(Boolean);
 
-        for (const [id, evidence] of Object.entries(footnotes)) {
+        for (const id of Object.keys({ ...lineEvidence, ...footnotes })) {
+          const evidence = footnotes[id] || lineEvidence[id] || '';
           const normalized = evidence.replace(/["“”']/g, '').trim();
           if (normalized && transcript.includes(normalized)) {
             footnotes[id] = normalized;
@@ -212,7 +229,8 @@
             }
           }
 
-          footnotes[id] = bestSentence || transcriptSentences[0] || '근거 원문 없음';
+          const numericId = Number.parseInt(id, 10);
+          footnotes[id] = bestScore > 0 ? bestSentence : (transcriptSentences[numericId - 1] || bestSentence || transcriptSentences[0] || '근거 원문 없음');
         }
 
         return { cleanedMarkdown, footnotes };
@@ -282,7 +300,7 @@
 
       async function streamTranslate(transcript, use_mock) {
         const translatedEl = document.getElementById('translated');
-        translatedEl.textContent = '번역 중입니다..\n';
+        translatedEl.textContent = '번역 중입니다..';
 
         const response = await fetch('/translate-stream', {
           method: 'POST',
@@ -296,11 +314,13 @@
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
+        let buffer = '';
 
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
-          translatedEl.textContent += decoder.decode(value, { stream: true });
+          buffer += decoder.decode(value, { stream: true });
+          translatedEl.textContent = buffer;
         }
       }
 
