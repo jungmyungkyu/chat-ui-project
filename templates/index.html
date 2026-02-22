@@ -57,7 +57,7 @@
   <body>
     <div class="container">
       <header class="header">
-        <h1 class="title">Earnings Call Analyzer</h1>
+        <h1 class="title">카카오페이증권 어닝콜 서비스</h1>
         <p class="subtitle">입력 텍스트/파일 기반 어닝콜 분석 PoC</p>
         <p class="hint">UI 버전: <strong>v2026.02-latest</strong> (footnote hover + action insight)</p>
       </header>
@@ -86,7 +86,6 @@
               <label class="check"><input type="checkbox" id="use_mock" /> Mock 모드(use_mock)</label>
               <button class="btn" onclick="runAnalyze()">분석 실행</button>
             </div>
-            <div class="hint">Previous Summary는 사용자 입력 대신 서버 내부 요약 에이전트 결과값을 사용합니다.</div>
           </div>
         </section>
 
@@ -126,11 +125,24 @@
 
         for (const line of lines) {
           const m = line.match(/^\[\^(\d+)\^\]:\s*(.+)$/);
-          if (m) footnotes[m[1]] = m[2].trim();
-          else kept.push(line);
+          if (m) {
+            const defText = m[2].trim();
+            const quoted = defText.match(/["“”']([^"“”']+)["“”']/);
+            footnotes[m[1]] = (quoted?.[1] || defText).trim();
+            continue;
+          }
+          kept.push(line);
         }
 
-        return { cleanedMarkdown: kept.join('\n'), footnotes };
+        const cleanedMarkdown = kept.join('\n');
+        const inlineRegex = /["“”']([^"“”']+)["“”']\s*\[\^(\d+)\^\]/g;
+        for (const match of cleanedMarkdown.matchAll(inlineRegex)) {
+          const quote = match[1]?.trim();
+          const id = match[2];
+          if (quote && id && !footnotes[id]) footnotes[id] = quote;
+        }
+
+        return { cleanedMarkdown, footnotes };
       }
 
       function escapeHtml(text) {
