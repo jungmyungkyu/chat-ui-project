@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Earnings Call PoC UI</title>
+    <style>
+      :root { --bg:#f6f8fc; --card:#fff; --text:#172033; --muted:#5c667f; --line:#e4e9f3; --primary:#315efb; --primary-dark:#2649c7; }
+      * { box-sizing:border-box; }
+      body { margin:0; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
+      .container { max-width:1200px; margin:0 auto; padding:28px 20px 48px; }
+      .header { margin-bottom:16px; }
+      .title { margin:0; font-size:28px; font-weight:700; }
+      .subtitle { margin:8px 0 0; color:var(--muted); }
+      .layout { display:grid; grid-template-columns:1fr 1.2fr; gap:16px; }
+      .card { background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:0 2px 12px rgba(17,35,70,.06); }
+      .card-header { padding:14px 16px; border-bottom:1px solid var(--line); font-weight:700; }
+      .card-body { padding:14px 16px 16px; }
+      .field { margin-bottom:12px; }
+      .field label { display:block; font-size:13px; font-weight:600; margin-bottom:6px; }
+      textarea, input[type="file"] { width:100%; border:1px solid #d3dcef; border-radius:10px; background:#fff; color:var(--text); padding:10px 12px; outline:none; }
+      textarea:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(49,94,251,.14); }
+      textarea { min-height:120px; resize:vertical; line-height:1.4; }
+      .hint { margin-top:6px; color:var(--muted); font-size:12px; }
+      .row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+      .portfolio-header { display:grid; grid-template-columns:2fr 1fr; gap:8px; margin:0 0 6px; color:var(--muted); font-size:12px; font-weight:700; }
+      #portfolio_rows { display:flex; flex-direction:column; gap:6px; }
+      .portfolio-row { justify-content:flex-start; gap:8px; }
+      .portfolio-row .portfolio-name { flex:2; min-width:240px; padding:12px; }
+      .portfolio-row .portfolio-weight { flex:1; min-width:140px; padding:12px; }
+      .check { display:inline-flex; align-items:center; gap:8px; font-size:14px; }
+      .btn { border:0; border-radius:10px; padding:10px 16px; background:var(--primary); color:#fff; font-weight:700; cursor:pointer; }
+      .btn:hover { background:var(--primary-dark); }
+      .status { font-size:12px; color:var(--muted); }
+      .result-grid { display:grid; gap:12px; }
+      .panel-title { font-size:13px; font-weight:700; margin-bottom:8px; }
+      .output-box { margin:0; min-height:180px; max-height:360px; overflow:auto; border-radius:10px; padding:14px; background:#0e1629; color:#d9e4ff; font-size:12px; line-height:1.45; white-space:pre-wrap; }
+      .markdown-box { min-height:340px; max-height:620px; overflow:auto; border:1px solid var(--line); border-radius:10px; padding:14px; background:#fff; }
+      .markdown-box h1,.markdown-box h2,.markdown-box h3 { margin:10px 0 6px; }
+      .markdown-box ul { padding-left:20px; }
+      .markdown-box table { width:100%; border-collapse:collapse; margin-top:8px; }
+      .markdown-box th,.markdown-box td { border:1px solid var(--line); padding:6px 8px; text-align:left; }
+      .fn-ref { cursor:help; color:var(--primary-dark); font-weight:700; }
+      .floating-tooltip {
+        position: fixed;
+        display: none;
+        pointer-events: none;
+        background: #111827;
+        color: #fff;
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        line-height: 1.35;
+        max-width: 360px;
+        z-index: 9999;
+        box-shadow: 0 4px 16px rgba(0,0,0,.2);
+      }
+      @media (max-width:980px) { .layout{grid-template-columns:1fr;} }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <h1 class="title">카카오페이증권 어닝콜 서비스</h1>
+        <p class="subtitle">입력 텍스트/파일 기반 어닝콜 분석 PoC</p>
+        <p class="hint">UI 버전: <strong>v2026.02-latest</strong> (footnote hover + action insight)</p>
+      </header>
+
+      <div class="layout">
+        <section class="card">
+          <div class="card-header">입력</div>
+          <div class="card-body">
+            <div class="field">
+              <label for="transcript">Transcript (직접 입력)</label>
+              <textarea id="transcript" placeholder="어닝콜 원문을 붙여넣으세요"></textarea>
+            </div>
+
+            <div class="field">
+              <label for="transcript_file">Transcript 파일 업로드 (.txt)</label>
+              <input type="file" id="transcript_file" accept=".txt,text/plain" />
+              <div class="hint">파일을 올리면 텍스트 입력란을 덮어씁니다.</div>
+            </div>
+
+            <div class="field">
+              <label>내 주식 포트폴리오</label>
+              <div class="portfolio-header">
+                <span>주식명</span>
+                <span>비중(%)</span>
+              </div>
+              <div id="portfolio_rows">
+                <div class="row portfolio-row">
+                  <input type="text" class="portfolio-name" placeholder="주식명 (예: AAPL)" value="AAPL" />
+                  <input type="number" class="portfolio-weight" placeholder="비중(%)" value="40" min="0" max="100" step="0.01" />
+                </div>
+                <div class="row portfolio-row">
+                  <input type="text" class="portfolio-name" placeholder="주식명 (예: MSFT)" value="MSFT" />
+                  <input type="number" class="portfolio-weight" placeholder="비중(%)" value="35" min="0" max="100" step="0.01" />
+                </div>
+                <div class="row portfolio-row">
+                  <input type="text" class="portfolio-name" placeholder="주식명 (예: NVDA)" value="NVDA" />
+                  <input type="number" class="portfolio-weight" placeholder="비중(%)" value="25" min="0" max="100" step="0.01" />
+                </div>
+              </div>
+              <button type="button" class="btn" id="add_portfolio_row" style="margin-top:8px;">+ 항목 추가</button>
+            </div>
+
+            <div class="row">
+              <label class="check"><input type="checkbox" id="use_mock" /> Mock 모드(use_mock)</label>
+              <button class="btn" onclick="runAnalyze()">분석 실행</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header row"><span>출력</span><span class="status" id="status">대기 중</span></div>
+          <div class="card-body result-grid">
+            <div>
+              <div class="panel-title">어닝콜 번역 결과 (한국어)</div>
+              <pre id="translated" class="output-box">아직 실행 전</pre>
+            </div>
+            <div>
+              <div class="panel-title">분석 결과 리포트 (Markdown)</div>
+              <div id="report" class="markdown-box">아직 실행 전</div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div id="floating-tooltip" class="floating-tooltip"></div>
+
+    <script>
+      const reportEl = document.getElementById('report');
+      const tooltipEl = document.getElementById('floating-tooltip');
+      const portfolioRowsEl = document.getElementById('portfolio_rows');
+
+      document.getElementById('add_portfolio_row').addEventListener('click', () => {
+        const row = document.createElement('div');
+        row.className = 'row portfolio-row';
+        row.innerHTML = `
+          <input type="text" class="portfolio-name" placeholder="주식명 (예: TSLA)" />
+          <input type="number" class="portfolio-weight" placeholder="비중(%)" min="0" max="100" step="0.01" />
+        `;
+        portfolioRowsEl.appendChild(row);
+      });
+
+      document.getElementById('transcript_file').addEventListener('change', async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        document.getElementById('transcript').value = text;
+      });
+
+      function parseFootnotes(markdownText, transcriptText) {
+        const footnotes = {};
+        const lineEvidence = {};
+        const transcript = transcriptText || '';
+        const lines = markdownText.split('\n');
+        const kept = [];
+
+        for (const line of lines) {
+          const m = line.match(/^\[\^(\d+)\^\]:\s*(.+)$/);
+          if (m) {
+            const defText = m[2].trim();
+            const quoted = defText.match(/["“”']([^"“”']+)["“”']/);
+            footnotes[m[1]] = (quoted?.[1] || defText).trim();
+            continue;
+          }
+          kept.push(line);
+        }
+
+        const cleanedMarkdown = kept.join('\n');
+        const inlineRegex = /["“”']([^"“”']+)["“”']\s*\[\^(\d+)\^\]/g;
+        for (const match of cleanedMarkdown.matchAll(inlineRegex)) {
+          const quote = match[1]?.trim();
+          const id = match[2];
+          if (quote && id && !footnotes[id]) footnotes[id] = quote;
+        }
+
+        for (const line of kept) {
+          const ids = Array.from(line.matchAll(/\[\^(\d+)\^\]/g)).map((m) => m[1]);
+          if (!ids.length) continue;
+          const quotedInLine = Array.from(line.matchAll(/["“”']([^"“”']+)["“”']/g)).map((m) => m[1].trim());
+          ids.forEach((id, idx) => {
+            if (footnotes[id]) return;
+            if (quotedInLine[idx]) {
+              lineEvidence[id] = quotedInLine[idx];
+              return;
+            }
+            const cleanedLine = line.replace(/\[\^\d+\^\]/g, ' ').replace(/[\-*#>|`]/g, ' ').trim();
+            if (cleanedLine) lineEvidence[id] = cleanedLine;
+          });
+        }
+
+        const markerRegex = /\[\^(\d+)\^\]/g;
+        for (const marker of cleanedMarkdown.matchAll(markerRegex)) {
+          const id = marker[1];
+          if (footnotes[id] || lineEvidence[id]) continue;
+          const idx = marker.index || 0;
+          const before = cleanedMarkdown.slice(Math.max(0, idx - 180), idx);
+          const sentence = before.split(/[\n.!?]/).pop()?.trim();
+          if (sentence) lineEvidence[id] = sentence;
+        }
+
+        const transcriptSentences = transcript
+          .split(/(?<=[.!?])\s+|\n+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        for (const id of Object.keys({ ...lineEvidence, ...footnotes })) {
+          const evidence = footnotes[id] || lineEvidence[id] || '';
+          const normalized = evidence.replace(/["“”']/g, '').trim();
+          if (normalized && transcript.includes(normalized)) {
+            footnotes[id] = normalized;
+            continue;
+          }
+
+          const evidenceTokens = normalized.toLowerCase().split(/\W+/).filter((t) => t.length > 2);
+          let bestSentence = '';
+          let bestScore = 0;
+
+          for (const sentence of transcriptSentences) {
+            const lower = sentence.toLowerCase();
+            const score = evidenceTokens.reduce((acc, token) => acc + (lower.includes(token) ? 1 : 0), 0);
+            if (score > bestScore) {
+              bestScore = score;
+              bestSentence = sentence;
+            }
+          }
+
+          const numericId = Number.parseInt(id, 10);
+          footnotes[id] = bestScore > 0 ? bestSentence : (transcriptSentences[numericId - 1] || bestSentence || transcriptSentences[0] || '근거 원문 없음');
+        }
+
+        return { cleanedMarkdown, footnotes };
+      }
+
+      function getPortfolioFromInputs() {
+        const names = Array.from(document.querySelectorAll('.portfolio-name'));
+        const weights = Array.from(document.querySelectorAll('.portfolio-weight'));
+
+        const portfolio = [];
+        for (let i = 0; i < Math.max(names.length, weights.length); i++) {
+          const name = (names[i]?.value || '').trim();
+          const weightPct = parseFloat((weights[i]?.value || '').trim());
+          if (!name && Number.isNaN(weightPct)) continue;
+          if (!name) throw new Error(`${i + 1}번째 항목의 주식명을 입력해주세요.`);
+          if (Number.isNaN(weightPct)) throw new Error(`${i + 1}번째 항목의 비중(%)을 입력해주세요.`);
+          if (weightPct < 0 || weightPct > 100) throw new Error(`${i + 1}번째 항목 비중은 0~100 사이여야 합니다.`);
+          portfolio.push({ name, weight: Number((weightPct / 100).toFixed(6)) });
+        }
+
+        if (!portfolio.length) {
+          throw new Error('최소 1개 이상의 포트폴리오 항목이 필요합니다.');
+        }
+
+        return portfolio;
+      }
+
+      function escapeHtml(text) {
+        return text
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
+      function injectFootnoteTooltips(html, footnotes) {
+        return html.replace(/\[\^(\d+)\^\]/g, (_, id) => {
+          const tip = footnotes[id] || '근거 원문 없음';
+          return `<sup class="fn-ref" data-tip="${escapeHtml(tip)}">[${id}]</sup>`;
+        });
+      }
+
+      function placeTooltip(event) {
+        const rect = tooltipEl.getBoundingClientRect();
+        tooltipEl.style.left = `${event.clientX - rect.width / 2}px`;
+        tooltipEl.style.top = `${event.clientY - rect.height - 12}px`;
+      }
+
+      reportEl.addEventListener('mouseover', (event) => {
+        const ref = event.target.closest('.fn-ref');
+        if (!ref) return;
+        tooltipEl.textContent = ref.getAttribute('data-tip') || '';
+        tooltipEl.style.display = 'block';
+        placeTooltip(event);
+      });
+
+      reportEl.addEventListener('mousemove', (event) => {
+        if (!event.target.closest('.fn-ref')) return;
+        placeTooltip(event);
+      });
+
+      reportEl.addEventListener('mouseout', (event) => {
+        if (event.target.closest('.fn-ref')) tooltipEl.style.display = 'none';
+      });
+
+
+      async function streamTranslate(transcript, use_mock) {
+        const translatedEl = document.getElementById('translated');
+        translatedEl.textContent = '번역 중입니다..';
+
+        const response = await fetch('/translate-stream', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ transcript, use_mock })
+        });
+
+        if (!response.ok || !response.body) {
+          throw new Error('번역 스트리밍 실패');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          translatedEl.textContent = buffer;
+        }
+      }
+
+      async function runAnalyze() {
+        const status = document.getElementById('status');
+        const transcript = document.getElementById('transcript').value;
+        const use_mock = document.getElementById('use_mock').checked;
+        const translatedEl = document.getElementById('translated');
+
+        let portfolio;
+        try {
+          portfolio = getPortfolioFromInputs();
+        } catch (e) {
+          alert(e.message || '내 주식 포트폴리오 입력값이 잘못되었습니다.');
+          return;
+        }
+
+        if (!transcript.trim()) {
+          alert('Transcript를 입력하거나 .txt 파일을 업로드하세요.');
+          return;
+        }
+
+        status.textContent = '요청 중...';
+        translatedEl.textContent = '번역 중입니다..';
+        reportEl.textContent = '분석 실행 중입니다...';
+
+        try {
+          await streamTranslate(transcript, use_mock);
+          const res = await fetch('/analyze', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ transcript, portfolio, use_mock })
+          });
+
+          const data = await res.json();
+          translatedEl.textContent = data.translated_text || '번역 결과가 없습니다.';
+
+          const markdown = data.final_report || '리포트 결과가 없습니다.';
+          const { cleanedMarkdown, footnotes } = parseFootnotes(markdown, transcript);
+          reportEl.innerHTML = window.marked
+            ? injectFootnoteTooltips(marked.parse(cleanedMarkdown), footnotes)
+            : cleanedMarkdown;
+
+          status.textContent = res.ok ? '완료' : `오류 (${res.status})`;
+        } catch (err) {
+          status.textContent = '네트워크 오류';
+          translatedEl.textContent = `요청 실패: ${err}`;
+          reportEl.textContent = `요청 실패: ${err}`;
+        }
+      }
+    </script>
+  </body>
+</html>
