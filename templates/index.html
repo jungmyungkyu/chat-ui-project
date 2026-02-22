@@ -78,8 +78,22 @@
             </div>
 
             <div class="field">
-              <label for="portfolio">내 주식 포트폴리오 (JSON)</label>
-              <textarea id="portfolio">[{"name":"AAPL","weight":0.4},{"name":"MSFT","weight":0.35},{"name":"NVDA","weight":0.25}]</textarea>
+              <label>내 주식 포트폴리오</label>
+              <div id="portfolio_rows">
+                <div class="row portfolio-row">
+                  <input type="text" class="portfolio-name" placeholder="주식명 (예: AAPL)" value="AAPL" />
+                  <input type="number" class="portfolio-weight" placeholder="비중(%)" value="40" min="0" max="100" step="0.01" />
+                </div>
+                <div class="row portfolio-row">
+                  <input type="text" class="portfolio-name" placeholder="주식명 (예: MSFT)" value="MSFT" />
+                  <input type="number" class="portfolio-weight" placeholder="비중(%)" value="35" min="0" max="100" step="0.01" />
+                </div>
+                <div class="row portfolio-row">
+                  <input type="text" class="portfolio-name" placeholder="주식명 (예: NVDA)" value="NVDA" />
+                  <input type="number" class="portfolio-weight" placeholder="비중(%)" value="25" min="0" max="100" step="0.01" />
+                </div>
+              </div>
+              <button type="button" class="btn" id="add_portfolio_row" style="margin-top:8px;">+ 항목 추가</button>
             </div>
 
             <div class="row">
@@ -110,6 +124,17 @@
     <script>
       const reportEl = document.getElementById('report');
       const tooltipEl = document.getElementById('floating-tooltip');
+      const portfolioRowsEl = document.getElementById('portfolio_rows');
+
+      document.getElementById('add_portfolio_row').addEventListener('click', () => {
+        const row = document.createElement('div');
+        row.className = 'row portfolio-row';
+        row.innerHTML = `
+          <input type="text" class="portfolio-name" placeholder="주식명 (예: TSLA)" />
+          <input type="number" class="portfolio-weight" placeholder="비중(%)" min="0" max="100" step="0.01" />
+        `;
+        portfolioRowsEl.appendChild(row);
+      });
 
       document.getElementById('transcript_file').addEventListener('change', async (event) => {
         const file = event.target.files?.[0];
@@ -118,8 +143,9 @@
         document.getElementById('transcript').value = text;
       });
 
-      function parseFootnotes(markdownText) {
+      function parseFootnotes(markdownText, transcriptText) {
         const footnotes = {};
+        const transcript = transcriptText || '';
         const lines = markdownText.split('\n');
         const kept = [];
 
@@ -142,7 +168,57 @@
           if (quote && id && !footnotes[id]) footnotes[id] = quote;
         }
 
+        const transcriptSentences = transcript
+          .split(/(?<=[.!?])\s+|\n+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        for (const [id, evidence] of Object.entries(footnotes)) {
+          const normalized = evidence.replace(/["“”']/g, '').trim();
+          if (normalized && transcript.includes(normalized)) {
+            footnotes[id] = normalized;
+            continue;
+          }
+
+          const evidenceTokens = normalized.toLowerCase().split(/\W+/).filter((t) => t.length > 2);
+          let bestSentence = '';
+          let bestScore = 0;
+
+          for (const sentence of transcriptSentences) {
+            const lower = sentence.toLowerCase();
+            const score = evidenceTokens.reduce((acc, token) => acc + (lower.includes(token) ? 1 : 0), 0);
+            if (score > bestScore) {
+              bestScore = score;
+              bestSentence = sentence;
+            }
+          }
+
+          footnotes[id] = bestSentence || transcriptSentences[0] || '근거 원문 없음';
+        }
+
         return { cleanedMarkdown, footnotes };
+      }
+
+      function getPortfolioFromInputs() {
+        const names = Array.from(document.querySelectorAll('.portfolio-name'));
+        const weights = Array.from(document.querySelectorAll('.portfolio-weight'));
+
+        const portfolio = [];
+        for (let i = 0; i < Math.max(names.length, weights.length); i++) {
+          const name = (names[i]?.value || '').trim();
+          const weightPct = parseFloat((weights[i]?.value || '').trim());
+          if (!name && Number.isNaN(weightPct)) continue;
+          if (!name) throw new Error(`${i + 1}번째 항목의 주식명을 입력해주세요.`);
+          if (Number.isNaN(weightPct)) throw new Error(`${i + 1}번째 항목의 비중(%)을 입력해주세요.`);
+          if (weightPct < 0 || weightPct > 100) throw new Error(`${i + 1}번째 항목 비중은 0~100 사이여야 합니다.`);
+          portfolio.push({ name, weight: Number((weightPct / 100).toFixed(6)) });
+        }
+
+        if (!portfolio.length) {
+          throw new Error('최소 1개 이상의 포트폴리오 항목이 필요합니다.');
+        }
+
+        return portfolio;
       }
 
       function escapeHtml(text) {
@@ -187,7 +263,7 @@
 
       async function streamTranslate(transcript, use_mock) {
         const translatedEl = document.getElementById('translated');
-        translatedEl.textContent = '';
+        translatedEl.textContent = '번역 중입니다..\n';
 
         const response = await fetch('/translate-stream', {
           method: 'POST',
@@ -217,9 +293,9 @@
 
         let portfolio;
         try {
-          portfolio = JSON.parse(document.getElementById('portfolio').value);
+          portfolio = getPortfolioFromInputs();
         } catch (e) {
-          alert('내 주식 포트폴리오 JSON 형식이 잘못되었습니다.');
+          alert(e.message || '내 주식 포트폴리오 입력값이 잘못되었습니다.');
           return;
         }
 
@@ -229,7 +305,7 @@
         }
 
         status.textContent = '요청 중...';
-        translatedEl.textContent = '번역 스트리밍 준비 중...';
+        translatedEl.textContent = '번역 중입니다..';
         reportEl.textContent = '분석 실행 중입니다...';
 
         try {
@@ -244,7 +320,7 @@
           translatedEl.textContent = data.translated_text || '번역 결과가 없습니다.';
 
           const markdown = data.final_report || '리포트 결과가 없습니다.';
-          const { cleanedMarkdown, footnotes } = parseFootnotes(markdown);
+          const { cleanedMarkdown, footnotes } = parseFootnotes(markdown, transcript);
           reportEl.innerHTML = window.marked
             ? injectFootnoteTooltips(marked.parse(cleanedMarkdown), footnotes)
             : cleanedMarkdown;
