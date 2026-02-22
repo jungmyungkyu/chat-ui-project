@@ -172,6 +172,31 @@
         if (event.target.closest('.fn-ref')) tooltipEl.style.display = 'none';
       });
 
+
+      async function streamTranslate(transcript, use_mock) {
+        const translatedEl = document.getElementById('translated');
+        translatedEl.textContent = '';
+
+        const response = await fetch('/translate-stream', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ transcript, use_mock })
+        });
+
+        if (!response.ok || !response.body) {
+          throw new Error('번역 스트리밍 실패');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          translatedEl.textContent += decoder.decode(value, { stream: true });
+        }
+      }
+
       async function runAnalyze() {
         const status = document.getElementById('status');
         const transcript = document.getElementById('transcript').value;
@@ -192,10 +217,11 @@
         }
 
         status.textContent = '요청 중...';
-        translatedEl.textContent = '분석 실행 중입니다...';
+        translatedEl.textContent = '번역 스트리밍 준비 중...';
         reportEl.textContent = '분석 실행 중입니다...';
 
         try {
+          await streamTranslate(transcript, use_mock);
           const res = await fetch('/analyze', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},

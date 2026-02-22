@@ -3,12 +3,19 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from earnings_langgraph_poc import run_mock_pipeline, run_pipeline
+from earnings_langgraph_poc import build_llm, run_mock_pipeline, run_pipeline
 
+
+
+
+class TranslateRequest(BaseModel):
+    transcript: str = Field(min_length=1)
+    use_mock: bool = False
+    api_key: Optional[str] = None
 
 class AnalyzeRequest(BaseModel):
     transcript: str = Field(min_length=1)
@@ -38,6 +45,36 @@ def home(request: Request):
 def health():
     return {"status": "ok"}
 
+
+
+
+@app.post("/translate-stream")
+def translate_stream(req: TranslateRequest):
+    if not req.use_mock and not (req.api_key or os.getenv("OPENAI_API_KEY")):
+        raise HTTPException(
+            status_code=400,
+            detail="OPENAI_API_KEY가 없어 실모드 실행이 불가합니다. 서버 환경변수를 설정하거나 use_mock=true로 테스트하세요.",
+        )
+
+    if req.use_mock:
+        translated = (
+            "회사는 분기 매출이 전년 대비 증가했고, 마진이 개선되었다고 설명했습니다. "
+            "다만 유럽 수요와 환율 변동성은 리스크 요인으로 언급되었습니다."
+        )
+    else:
+        llm = build_llm(api_key=req.api_key)
+        prompt = (
+            "다음 어닝콜 영어 내용을 자연스러운 한국어로 번역해줘. "
+            "숫자(매출/마진/가이던스)는 원문 단위를 유지해줘.\n\n"
+            f"[원문]\n{req.transcript}"
+        )
+        translated = llm.invoke(prompt).content
+
+    def _gen():
+        for token in translated.split(" "):
+            yield token + " "
+
+    return StreamingResponse(_gen(), media_type="text/plain; charset=utf-8")
 
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest):
