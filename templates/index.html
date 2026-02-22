@@ -28,6 +28,8 @@
       .portfolio-row { justify-content:flex-start; gap:8px; }
       .portfolio-row .portfolio-name { flex:2; min-width:240px; padding:12px; }
       .portfolio-row .portfolio-weight { flex:1; min-width:140px; padding:12px; }
+      .portfolio-row .remove-row-btn { background:#e5eaf7; color:#243251; border:1px solid #cfd8ee; border-radius:8px; padding:10px 10px; font-weight:700; cursor:pointer; }
+      .portfolio-row .remove-row-btn:hover { background:#dce5fb; }
       .check { display:inline-flex; align-items:center; gap:8px; font-size:14px; }
       .btn { border:0; border-radius:10px; padding:10px 16px; background:var(--primary); color:#fff; font-weight:700; cursor:pointer; }
       .btn:hover { background:var(--primary-dark); }
@@ -92,14 +94,17 @@
                 <div class="row portfolio-row">
                   <input type="text" class="portfolio-name" placeholder="주식명 (예: AAPL)" value="AAPL" />
                   <input type="number" class="portfolio-weight" placeholder="비중(%)" value="40" min="0" max="100" step="0.01" />
+                  <button type="button" class="remove-row-btn" title="항목 삭제">−</button>
                 </div>
                 <div class="row portfolio-row">
                   <input type="text" class="portfolio-name" placeholder="주식명 (예: MSFT)" value="MSFT" />
                   <input type="number" class="portfolio-weight" placeholder="비중(%)" value="35" min="0" max="100" step="0.01" />
+                  <button type="button" class="remove-row-btn" title="항목 삭제">−</button>
                 </div>
                 <div class="row portfolio-row">
                   <input type="text" class="portfolio-name" placeholder="주식명 (예: NVDA)" value="NVDA" />
                   <input type="number" class="portfolio-weight" placeholder="비중(%)" value="25" min="0" max="100" step="0.01" />
+                  <button type="button" class="remove-row-btn" title="항목 삭제">−</button>
                 </div>
               </div>
               <button type="button" class="btn" id="add_portfolio_row" style="margin-top:8px;">+ 항목 추가</button>
@@ -107,7 +112,7 @@
 
             <div class="row">
               <label class="check"><input type="checkbox" id="use_mock" /> Mock 모드(use_mock)</label>
-              <button class="btn" onclick="runAnalyze()">분석 실행</button>
+              <button class="btn" id="analyze_btn" onclick="runAnalyze()" disabled>분석 실행</button>
             </div>
           </div>
         </section>
@@ -134,6 +139,15 @@
       const reportEl = document.getElementById('report');
       const tooltipEl = document.getElementById('floating-tooltip');
       const portfolioRowsEl = document.getElementById('portfolio_rows');
+      const transcriptEl = document.getElementById('transcript');
+      const analyzeBtn = document.getElementById('analyze_btn');
+
+      function updateAnalyzeButtonState() {
+        analyzeBtn.disabled = !transcriptEl.value.trim();
+      }
+
+      transcriptEl.addEventListener('input', updateAnalyzeButtonState);
+      updateAnalyzeButtonState();
 
       document.getElementById('add_portfolio_row').addEventListener('click', () => {
         const row = document.createElement('div');
@@ -141,15 +155,28 @@
         row.innerHTML = `
           <input type="text" class="portfolio-name" placeholder="주식명 (예: TSLA)" />
           <input type="number" class="portfolio-weight" placeholder="비중(%)" min="0" max="100" step="0.01" />
+          <button type="button" class="remove-row-btn" title="항목 삭제">−</button>
         `;
         portfolioRowsEl.appendChild(row);
+      });
+
+      portfolioRowsEl.addEventListener('click', (event) => {
+        const btn = event.target.closest('.remove-row-btn');
+        if (!btn) return;
+        const rows = portfolioRowsEl.querySelectorAll('.portfolio-row');
+        if (rows.length <= 1) {
+          alert('최소 1개 이상의 포트폴리오 항목이 필요합니다.');
+          return;
+        }
+        btn.closest('.portfolio-row')?.remove();
       });
 
       document.getElementById('transcript_file').addEventListener('change', async (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
         const text = await file.text();
-        document.getElementById('transcript').value = text;
+        transcriptEl.value = text;
+        updateAnalyzeButtonState();
       });
 
       function parseFootnotes(markdownText, transcriptText) {

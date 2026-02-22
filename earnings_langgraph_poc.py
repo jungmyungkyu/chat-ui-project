@@ -44,6 +44,24 @@ def _extract_json(text: str) -> Dict[str, Any]:
     return {"raw_output": text}
 
 
+def _ensure_inline_footnotes(report_text: str) -> str:
+    if "[^" in report_text:
+        return report_text
+
+    lines = report_text.splitlines()
+    note_id = 1
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        lines[i] = f"{line} [^{note_id}^]"
+        note_id += 1
+        if note_id > 4:
+            break
+
+    return "\n".join(lines)
+
+
 def build_llm(api_key: str | None = None) -> ChatOpenAI:
     key = api_key or os.getenv("OPENAI_API_KEY")
     if not key:
@@ -270,10 +288,11 @@ def build_app(llm: ChatOpenAI):
 """
 
         result = llm.invoke(prompt)
+        final_report = _ensure_inline_footnotes(result.content)
 
         return {
             "portfolio_impact": portfolio_impact,
-            "final_report": result.content,
+            "final_report": final_report,
         }
 
     graph = StateGraph(EarningsState)
