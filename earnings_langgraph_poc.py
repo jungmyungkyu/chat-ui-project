@@ -57,6 +57,9 @@ def build_llm(api_key: str | None = None) -> ChatOpenAI:
 
 
 def build_app(llm: ChatOpenAI):
+    # ----------------------
+    # 1️⃣ Translate Node
+    # ----------------------
     def translate_node(state: EarningsState) -> Dict[str, str]:
         prompt = (
             "다음 어닝콜 영어 내용을 자연스러운 한국어로 번역해줘. "
@@ -66,134 +69,156 @@ def build_app(llm: ChatOpenAI):
         result = llm.invoke(prompt)
         return {"translated_text": result.content}
 
-    def structure_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
+    # ----------------------
+    # 2️⃣ Analysis Node (structure + signal + delta 통합)
+    # ----------------------
+    def analysis_node(state: EarningsState) -> Dict[str, Any]:
         prompt = f"""
-다음 어닝콜 내용을 아래 스키마로 JSON만 출력하라.
+당신은 어닝콜 분석 전문가다.
 
+아래 작업을 모두 수행하고 반드시 JSON만 출력하라.
+
+1. 구조화:
 {{
-  "revenue": {{"value": "", "comment": ""}},
-  "margin": {{"value": "", "comment": ""}},
-  "guidance": {{"value": "", "comment": ""}},
-  "risks": ["", ""],
-  "qna_summary": ["", ""]
+  "revenue": {{"value": null, "unit": null, "yoy": null}},
+  "margin": {{"value": null, "change": null}},
+  "guidance": {{"value": null, "direction": null}},
+  "risks": [],
+  "qna_summary": []
 }}
 
-[내용]
-{state['translated_text']}
-"""
-        result = llm.invoke(prompt)
-        return {"structured_data": _extract_json(result.content)}
-
-    def signal_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
-        prompt = f"""
-다음 데이터를 기반으로 점수를 계산하라.
+2. 점수 계산:
 - growth_score (-1~1)
 - margin_score (-1~1)
-- risk_score (-1~1, 위험 클수록 음수)
+- risk_score (-1~1)
 
-반드시 JSON만 출력:
+3. 전분기 대비 변화:
 {{
-  "growth_score": 0.0,
-  "margin_score": 0.0,
-  "risk_score": 0.0,
-  "rationale": ["근거1", "근거2"]
-}}
-
-[입력]
-{json.dumps(state.get('structured_data', {}), ensure_ascii=False)}
-"""
-        result = llm.invoke(prompt)
-        return {"signals": _extract_json(result.content)}
-
-    def delta_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
-        prompt = f"""
-이전 분기 요약과 이번 분기 내용을 비교해 핵심 변화만 정리하라.
-반드시 JSON으로 출력:
-{{
-  "improved": [""],
-  "deteriorated": [""],
-  "unchanged": [""],
+  "guidance_change": "",
+  "growth_change": "",
+  "margin_change": "",
+  "risk_change": "",
+  "tone_change": "",
   "one_line_takeaway": ""
 }}
 
-[이전 분기]
+최종 출력 스키마:
+{{
+  "structured_data": {{...}},
+  "signals": {{
+    "growth_score": 0.0,
+    "margin_score": 0.0,
+    "risk_score": 0.0,
+    "rationale": []
+  }},
+  "delta_analysis": {{...}}
+}}
+
+[이전 분기 요약]
 {state['previous_summary']}
 
-[이번 분기]
+[이번 분기 번역본]
 {state['translated_text']}
 """
         result = llm.invoke(prompt)
-        return {"delta_analysis": _extract_json(result.content)}
+        parsed = _extract_json(result.content)
 
-    def impact_node(state: EarningsState) -> Dict[str, Dict[str, Any]]:
+        return {
+            "structured_data": parsed.get("structured_data", {}),
+            "signals": parsed.get("signals", {}),
+            "delta_analysis": parsed.get("delta_analysis", {}),
+        }
+
+    # ----------------------
+    # 3️⃣ Report Node (analysis_result + portfolio)
+    # ----------------------
+    def report_node(state: EarningsState) -> Dict[str, Any]:
         signals = state.get("signals", {})
-
         growth = float(signals.get("growth_score", 0))
         margin = float(signals.get("margin_score", 0))
         risk = float(signals.get("risk_score", 0))
 
-        per_asset: List[Dict[str, Any]] = []
-        total_score = 0.0
         base_score = growth * 0.5 + margin * 0.3 + risk * 0.2
+        total_score = 0.0
+        per_asset: List[Dict[str, Any]] = []
 
         for asset in state["portfolio"]:
-            name = asset.get("name", "unknown")
             weight = float(asset.get("weight", 0))
-            asset_score = round(weight * base_score, 4)
-            total_score += asset_score
-            per_asset.append({"name": name, "weight": weight, "impact_score": asset_score})
+            score = round(weight * base_score, 4)
+            total_score += score
+            per_asset.append(
+                {
+                    "name": asset.get("name", "unknown"),
+                    "weight": weight,
+                    "impact_score": score,
+                }
+            )
 
-        return {
-            "portfolio_impact": {
-                "total_score": round(total_score, 4),
-                "risk_level": "높음" if risk < -0.3 else "보통" if risk < 0.2 else "낮음",
-                "per_asset": per_asset,
-            }
+        portfolio_impact = {
+            "total_score": round(total_score, 4),
+            "risk_level": "높음" if risk < -0.3 else "보통" if risk < 0.2 else "낮음",
+            "per_asset": per_asset,
         }
 
-    def report_node(state: EarningsState) -> Dict[str, str]:
         prompt = f"""
-아래 입력을 바탕으로 개인 투자자용 한국어 마크다운 리포트를 작성하라.
+당신은 개인 투자자의 의사결정을 돕는 AI 애널리스트다.
 
-핵심 요구사항:
-- 투자 권유/확정적 표현 금지, 확률 기반 시나리오 중심
-- 리포트는 충분히 자세하고 실무적으로 작성
-- 분석 근거는 반드시 원문 인용으로 연결
-- 숫자 및 가이던스 출처를 명시
-- 인용 표시는 반드시 [^1^], [^2^] 형태로 본문에 포함
+목표:
+단순 요약이 아니라, 사용자가 실제로 무엇을 점검해야 하는지 판단할 수 있도록 돕는 행동 중심 리포트를 작성하라.
 
-반드시 아래 섹션 순서로 작성:
-## 1. 개인화 가치 (Personalization)
-- 보유 종목 및 비중 반영
-- 사용자별 영향도 산출
-- 점수 숫자 대신 사용자 친화적 액션 레벨로 요약: "즉시 점검 필요 / 주의 관찰 / 정상 모니터링"
+중요 규칙:
+- 투자 권유, 매수/매도 지시, 확정적 표현 금지
+- 확률 및 시나리오 기반 서술
+- 내부 계산 점수(total_score)는 절대 노출하지 않는다
+- 행동 레벨은 아래 3가지 중 하나만 사용:
+  • 정상 모니터링
+  • 주의 관찰
+  • 즉시 점검 필요
+- 모든 핵심 판단에는 transcript에서 직접 복사한 문장을 인용하고 [^1^] 형태로 본문에 표시
+- 최소 4개 이상의 footnote 포함
+- 인용은 반드시 transcript에 실제 존재하는 문장만 사용 (요약 문장 인용 금지)
 
-## 2. 변화 감지 가치 (Delta Insight)
-- 전분기 대비 가이던스 변화
-- 주요 리스크 키워드 증감(증가/감소 키워드 각각)
+# 1) 핵심 요약
+- 이번 어닝콜의 한 줄 결론
+- 성장 / 마진 / 가이던스 / 리스크를 균형 있게 요약
+
+# 2) 긍정 / 부정 / 리스크 신호
+## 기업에 긍정적인 신호
+- bullet 3개 이상, 원문 인용 footnote 포함
+## 기업에 부정적인 신호
+- bullet 2~3개
+## 리스크 요인
+- 단기 리스크
+- 중기 리스크
+- 반복 언급된 위험 키워드 포함
+
+# 3) 전분기 대비 변화
+- 가이던스 변화 (상향/하향/유지)
+- 성장률 변화
+- 마진 변화
+- 리스크 언급 증감
+- 주요 리스크 키워드 증감
 - 경영진 톤 변화
+- 반복 키워드 Top 5
+- One-line takeaway
 
-## 3. 신뢰 가치 (Transparency)
-- 모든 분석에 원문 근거 연결
-- 숫자 및 가이던스 출처 명시
+# 4) 포트폴리오 영향
+## 기업 관점
+- 기업 자체 신호 2~3줄
+## 사용자 포트폴리오 관점
+- 보유 종목 및 비중 반영
+- 행동 레벨을 굵게 표시
+- 왜 그런 판단인지 2~3줄 설명
+- 포트폴리오 내 취약 요소 명시
+- 숫자 점수는 절대 노출하지 않는다
 
-## 4. 핵심 기능 결과
-### 4-1. 포트폴리오 영향도 분석
-- 사용자 친화적 결론: 지금 행동이 필요한지 여부를 명시
-### 4-2. 전분기 대비 변화 감지
-- 주요 리스크 키워드 증감 분석 포함
-### 4-3. 행동 보조 인사이트
-- 상승/하락 시나리오
-- 리스크 요인 요약
-- 경쟁사 대비 위치(가능하면)
+# 5) 체크 포인트 (실제 액션 보조)
+- "~여부를 점검할 필요가 있습니다" 형태의 bullet
 
-## 5. 반복 키워드 (Top 5)
-
-## 6. 위험수준 신호
+# 6) 위험수준 신호
 - 전체 위험수준: 낮음/보통/높음 + 근거 한 줄
 
-## 7. 직관적 신호 요약표
-- 아래 형식으로 표를 작성
+# 7) 직관적 신호 요약표
 | 항목 | 상태 |
 | --- | --- |
 | 매출 성장 | 🟢/🟡/🔴 |
@@ -201,17 +226,14 @@ def build_app(llm: ChatOpenAI):
 | 리스크 | 🟢/🟡/🔴 |
 | 가이던스 | 🟢/🟡/🔴 |
 
-## 8. 근거 주석
-- 최소 4개
-- 형식 예시:
-[^1^]: "transcript 원문 인용" -> 해석
-[^2^]: "transcript 원문 인용" -> 해석
+# 8) 근거 주석
+[^1^]: "transcript 원문 문장 그대로" → 해석
+[^2^]: "transcript 원문 문장 그대로" → 해석
+[^3^]: ...
+[^4^]: ...
 
 [원문 transcript]
 {state['transcript']}
-
-[포트폴리오]
-{json.dumps(state['portfolio'], ensure_ascii=False)}
 
 [구조화 데이터]
 {json.dumps(state.get('structured_data', {}), ensure_ascii=False)}
@@ -222,26 +244,26 @@ def build_app(llm: ChatOpenAI):
 [전분기 대비 변화]
 {json.dumps(state.get('delta_analysis', {}), ensure_ascii=False)}
 
-[포트폴리오 영향]
-{json.dumps(state.get('portfolio_impact', {}), ensure_ascii=False)}
+[포트폴리오 영향 (내부 계산 결과)]
+{json.dumps(portfolio_impact, ensure_ascii=False)}
 """
+
         result = llm.invoke(prompt)
-        return {"final_report": result.content}
+
+        return {
+            "portfolio_impact": portfolio_impact,
+            "final_report": result.content,
+        }
 
     graph = StateGraph(EarningsState)
     graph.add_node("translate", translate_node)
-    graph.add_node("structure", structure_node)
-    graph.add_node("signal", signal_node)
-    graph.add_node("delta", delta_node)
-    graph.add_node("impact", impact_node)
+    graph.add_node("analysis", analysis_node)
     graph.add_node("report", report_node)
 
     graph.set_entry_point("translate")
-    graph.add_edge("translate", "structure")
-    graph.add_edge("structure", "signal")
-    graph.add_edge("signal", "delta")
-    graph.add_edge("delta", "impact")
-    graph.add_edge("impact", "report")
+    graph.add_edge("translate", "analysis")
+    graph.add_edge("analysis", "report")
+
     return graph.compile()
 
 
@@ -302,7 +324,7 @@ def run_mock_pipeline(transcript: str, previous_summary: str, portfolio: List[Di
     }
     report = (
         "## 1. 개인화 가치 (Personalization)\n"
-        "보유 종목 비중을 반영하면 포트폴리오 영향은 완만한 긍정이며, 현재 액션 레벨은 **주의 관찰**입니다.[^1^]\n\n"
+        "보유 종목 비중을 반영하면 현재 행동 레벨은 **주의 관찰**이며, 급격한 포지션 변경보다 핵심 리스크 점검이 우선입니다.[^1^]\n\n"
         "## 2. 변화 감지 가치 (Delta Insight)\n"
         "전분기 대비 가이던스는 소폭 개선됐고, 리스크 키워드(수요 둔화·변동성) 언급은 증가했습니다.[^2^]\n\n"
         "## 3. 신뢰 가치 (Transparency)\n"
