@@ -23,6 +23,11 @@
       textarea { min-height:120px; resize:vertical; line-height:1.4; }
       .hint { margin-top:6px; color:var(--muted); font-size:12px; }
       .row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+      .portfolio-header { display:grid; grid-template-columns:2fr 1fr; gap:8px; margin:0 0 6px; color:var(--muted); font-size:12px; font-weight:700; }
+      #portfolio_rows { display:flex; flex-direction:column; gap:6px; }
+      .portfolio-row { justify-content:flex-start; gap:8px; }
+      .portfolio-row .portfolio-name { flex:2; min-width:240px; padding:12px; }
+      .portfolio-row .portfolio-weight { flex:1; min-width:140px; padding:12px; }
       .check { display:inline-flex; align-items:center; gap:8px; font-size:14px; }
       .btn { border:0; border-radius:10px; padding:10px 16px; background:var(--primary); color:#fff; font-weight:700; cursor:pointer; }
       .btn:hover { background:var(--primary-dark); }
@@ -79,6 +84,10 @@
 
             <div class="field">
               <label>내 주식 포트폴리오</label>
+              <div class="portfolio-header">
+                <span>주식명</span>
+                <span>비중(%)</span>
+              </div>
               <div id="portfolio_rows">
                 <div class="row portfolio-row">
                   <input type="text" class="portfolio-name" placeholder="주식명 (예: AAPL)" value="AAPL" />
@@ -166,6 +175,16 @@
           const quote = match[1]?.trim();
           const id = match[2];
           if (quote && id && !footnotes[id]) footnotes[id] = quote;
+        }
+
+        const markerRegex = /\[\^(\d+)\^\]/g;
+        for (const marker of cleanedMarkdown.matchAll(markerRegex)) {
+          const id = marker[1];
+          if (footnotes[id]) continue;
+          const idx = marker.index || 0;
+          const before = cleanedMarkdown.slice(Math.max(0, idx - 180), idx);
+          const sentence = before.split(/[\n.!?]/).pop()?.trim();
+          if (sentence) footnotes[id] = sentence;
         }
 
         const transcriptSentences = transcript
