@@ -1,13 +1,13 @@
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from earnings_langgraph_poc import build_llm, run_mock_pipeline, run_pipeline
+from earnings_langgraph_poc import build_llm, build_translation_app, run_mock_pipeline, run_pipeline
 
 
 
@@ -49,7 +49,7 @@ def health():
 
 
 @app.post("/translate-stream")
-def translate_stream(req: TranslateRequest):
+async def translate_stream(req: TranslateRequest):
     if not req.use_mock and not (req.api_key or os.getenv("OPENAI_API_KEY")):
         raise HTTPException(
             status_code=400,
@@ -62,22 +62,44 @@ def translate_stream(req: TranslateRequest):
             "다만 유럽 수요와 환율 변동성은 리스크 요인으로 언급되었습니다."
         )
     else:
-        llm = build_llm(api_key=req.api_key)
-        prompt = (
-            "다음 어닝콜 영어 내용을 자연스러운 한국어로 번역해줘. "
-            "숫자(매출/마진/가이던스)는 원문 단위를 유지해줘.\n\n"
-            f"[원문]\n{req.transcript}"
-        )
-        translated = llm.invoke(prompt).content
+        llm = build_llm(api_key=req.api_key, streaming=True)
+        app_graph = build_translation_app(llm)
 
-    def _gen():
+        async def _gen_graph() -> AsyncIterator[str]:
+            async for event in app_graph.astream_events(
+                {"transcript": req.transcript}, version="v2"
+            ):
+                if event.get("event") != "on_chat_model_stream":
+                    continue
+
+                data = event.get("data", {})
+                chunk = data.get("chunk")
+                text = ""
+                if chunk is not None:
+                    if hasattr(chunk, "content"):
+                        content = chunk.content
+                        if isinstance(content, str):
+                            text = content
+                        elif isinstance(content, list):
+                            text = "".join(
+                                part.get("text", "") for part in content if isinstance(part, dict)
+                            )
+                    else:
+                        text = str(chunk)
+
+                if text:
+                    yield text
+
+        return StreamingResponse(_gen_graph(), media_type="text/plain; charset=utf-8")
+
+    async def _gen_mock() -> AsyncIterator[str]:
         for token in translated.split(" "):
             yield token + " "
 
-    return StreamingResponse(_gen(), media_type="text/plain; charset=utf-8")
+    return StreamingResponse(_gen_mock(), media_type="text/plain; charset=utf-8")
 
 @app.post("/analyze")
-def analyze(req: AnalyzeRequest):
+async def analyze(req: AnalyzeRequest):
     if not req.use_mock and not (req.api_key or os.getenv("OPENAI_API_KEY")):
         raise HTTPException(
             status_code=400,

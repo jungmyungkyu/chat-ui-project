@@ -44,7 +44,7 @@ def _extract_json(text: str) -> Dict[str, Any]:
     return {"raw_output": text}
 
 
-def build_llm(api_key: str | None = None) -> ChatOpenAI:
+def build_llm(api_key: str | None = None, *, streaming: bool = False) -> ChatOpenAI:
     key = api_key or os.getenv("OPENAI_API_KEY")
     if not key:
         raise ValueError("OPENAI_API_KEY가 필요합니다.")
@@ -53,6 +53,7 @@ def build_llm(api_key: str | None = None) -> ChatOpenAI:
         model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         temperature=0,
         api_key=key,
+        streaming=streaming,
     )
 
 
@@ -289,6 +290,23 @@ def build_app(llm: ChatOpenAI):
     graph.add_edge("translate", "analysis")
     graph.add_edge("analysis", "report")
 
+    return graph.compile()
+
+
+def build_translation_app(llm: ChatOpenAI):
+    def translate_node(state: EarningsState) -> Dict[str, str]:
+        prompt = (
+            "다음 어닝콜 영어 내용을 자연스러운 한국어로 번역해줘. "
+            "숫자(매출/마진/가이던스)는 원문 단위를 유지해줘.\n\n"
+            f"[원문]\n{state['transcript']}"
+        )
+        result = llm.invoke(prompt)
+        return {"translated_text": result.content}
+
+    graph = StateGraph(EarningsState)
+    graph.add_node("translate", translate_node)
+    graph.set_entry_point("translate")
+    graph.set_finish_point("translate")
     return graph.compile()
 
 
