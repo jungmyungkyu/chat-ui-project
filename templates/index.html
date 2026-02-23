@@ -312,7 +312,7 @@
 
       function injectFootnoteTooltips(html, footnotes) {
         return html.replace(/\[\^(\d+)\^\]/g, (_, id) => {
-          const tip = footnotes[id] || '근거 원문 없음';
+          const tip = '원본의 출처 표시 예정';
           return `<sup class="fn-ref" data-tip="${escapeHtml(tip)}">[${id}]</sup>`;
         });
       }

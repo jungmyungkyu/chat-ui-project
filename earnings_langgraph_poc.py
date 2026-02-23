@@ -1,6 +1,5 @@
 import json
 import os
-import re
 from typing import Any, Dict, List, TypedDict
 
 from dotenv import load_dotenv
@@ -43,28 +42,6 @@ def _extract_json(text: str) -> Dict[str, Any]:
                 continue
 
     return {"raw_output": text}
-
-
-def _ensure_inline_footnotes(report_text: str) -> str:
-    # Normalize common malformed variants like [^1^} -> [^1^]
-    report_text = re.sub(r"\[\^(\d+)\^\}", r"[^\1^]", report_text)
-    report_text = re.sub(r"\[\^(\d+)\}", r"[^\1^]", report_text)
-
-    if re.search(r"\[\^\d+\^\]", report_text):
-        return report_text
-
-    lines = report_text.splitlines()
-    note_id = 1
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        lines[i] = f"{line} [^{note_id}^]"
-        note_id += 1
-        if note_id > 4:
-            break
-
-    return "\n".join(lines)
 
 
 def build_llm(api_key: str | None = None) -> ChatOpenAI:
@@ -195,6 +172,7 @@ def build_app(llm: ChatOpenAI):
 - 내부 계산 점수(total_score)는 절대 노출하지 않는다
 - transcript에 없는 리스크를 생성하지 말 것
 - 거시경제/공급망 등 일반적 리스크 임의 추가 금지
+- 리포트 본문은 한국어로만 작성하고 영어 원문/영문 인용문은 출력하지 말 것
 - 행동 레벨은 반드시 아래 4단계 중 하나만 사용:
 
   🟢 정상 모니터링
@@ -203,12 +181,6 @@ def build_app(llm: ChatOpenAI):
   🔴 즉시 점검 필요
 
 - 행동 레벨은 반드시 굵게 표시
-- 최소 4개 이상의 서로 다른 원문 인용을 포함
-- 본문 인용 표시는 반드시 [^1^] 형태 사용
-- footnote 목록은 반드시 생성하되,
-  리포트 맨 마지막에 HTML 주석(<!-- -->) 안에 작성하라
-- HTML 주석 블록은 화면에 노출되지 않아야 한다
-- footnote에는 transcript 내 실제 문장만 그대로 인용하라
 
 ------------------------------------------------------------
 
@@ -303,11 +275,9 @@ def build_app(llm: ChatOpenAI):
 """
 
         result = llm.invoke(prompt)
-        final_report = _ensure_inline_footnotes(result.content)
-
         return {
             "portfolio_impact": portfolio_impact,
-            "final_report": final_report,
+            "final_report": result.content,
         }
 
     graph = StateGraph(EarningsState)
@@ -386,16 +356,16 @@ def run_mock_pipeline(transcript: str, previous_summary: str, portfolio: List[Di
         "핵심 판단마다 transcript 원문 인용을 [^n^] 형태로 본문에 표시합니다.\n\n"
         "## 4. 핵심 기능 결과\n"
         "### 4-1. 포트폴리오 영향도 분석\n"
-        "이번 어닝콜은 포트폴리오에 완만한 긍정 신호이나, 반도체/글로벌 수요 리스크 노출 점검이 필요합니다. \"Risks include Europe demand\"[^3^]\n\n"
+        "이번 어닝콜은 포트폴리오에 완만한 긍정 신호이나, 반도체/글로벌 수요 리스크 노출 점검이 필요합니다.[^3^]\n\n"
         "### 4-2. 전분기 대비 변화 감지\n"
         "주요 리스크 키워드 증감: 증가(유럽 수요, 변동성), 감소(공급망 정상화).\n\n"
         "### 4-3. 행동 보조 인사이트\n"
-        "상승 시나리오: AI 수요 유지 시 가이던스 추가 상향 가능. \"AI demand increased\"[^1^]\n"
-        "하락 시나리오: 유럽 수요 둔화와 환율 변동성 확대 시 실적 압박. \"FX volatility\"[^4^]\n\n"
+        "상승 시나리오: 인공지능 수요 유지 시 가이던스 추가 상향 가능.[^1^]\n"
+        "하락 시나리오: 유럽 수요 둔화와 환율 변동성 확대 시 실적 압박.[^4^]\n\n"
         "## 5. 반복 키워드 (Top 5)\n"
-        "- AI\n- Guidance\n- Margin\n- Demand\n- Volatility\n\n"
+        "- 인공지능\n- 가이던스\n- 마진\n- 수요\n- 변동성\n\n"
         "## 6. 위험수준 신호\n"
-        "- 전체 위험수준: **보통(🟡)** — 성장 모멘텀은 있으나 매크로/환율 리스크가 병존. \"Guidance raised\"[^2^]\n\n"
+        "- 전체 위험수준: **보통(🟡)** — 성장 모멘텀은 있으나 거시/환율 리스크가 병존.[^2^]\n\n"
         "## 7. 직관적 신호 요약표\n"
         "| 항목 | 상태 |\n"
         "| --- | --- |\n"
