@@ -317,6 +317,43 @@
         });
       }
 
+      function addSequentialInlineMarkers(markdownText) {
+        if (!markdownText) return markdownText;
+
+        let markerId = 1;
+        const lines = markdownText.split('\n');
+
+        const marked = lines.map((line) => {
+          const trimmed = line.trim();
+          if (!trimmed) return line;
+          if (/^#{1,6}\s/.test(trimmed)) return line;
+          if (/^\|/.test(trimmed)) return line;
+          if (/^```/.test(trimmed)) return line;
+          if (/\[\^\d+\^\]/.test(line)) return line;
+
+          const sentenceRegex = /[^.!?\n]+[.!?]+/g;
+          const matches = [...line.matchAll(sentenceRegex)];
+          if (!matches.length) return `${line} [^${markerId++}^]`;
+
+          let result = '';
+          let lastIndex = 0;
+          for (const m of matches) {
+            const idx = m.index ?? 0;
+            const sentence = m[0];
+            result += line.slice(lastIndex, idx);
+            result += `${sentence} [^${markerId++}^]`;
+            lastIndex = idx + sentence.length;
+          }
+
+          if (lastIndex < line.length) {
+            result += line.slice(lastIndex);
+          }
+          return result;
+        });
+
+        return marked.join('\n');
+      }
+
       function placeTooltip(event) {
         const rect = tooltipEl.getBoundingClientRect();
         tooltipEl.style.left = `${event.clientX - rect.width / 2}px`;
@@ -405,7 +442,8 @@
           translatedEl.textContent = data.translated_text || '번역 결과가 없습니다.';
 
           const markdown = data.final_report || '리포트 결과가 없습니다.';
-          const { cleanedMarkdown, footnotes } = parseFootnotes(markdown, transcript);
+          const markdownWithMarkers = addSequentialInlineMarkers(markdown);
+          const { cleanedMarkdown, footnotes } = parseFootnotes(markdownWithMarkers, transcript);
           reportEl.innerHTML = window.marked
             ? injectFootnoteTooltips(marked.parse(cleanedMarkdown), footnotes)
             : cleanedMarkdown;
